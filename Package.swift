@@ -21,7 +21,7 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "export-library-keys"
+            name: "export-library-assets"
         ),
     ]
 )

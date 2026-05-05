@@ -49,7 +49,7 @@ B2_S3_ENDPOINT=https://s3.us-west-002.backblazeb2.com \
 
 On completion the script prints the number of objects written.
 
-### `export-library-keys`
+### `export-library-assets`
 
 Enumerates the local Photos library via PhotoKit and prints, for each asset,
 the key under which it would be stored in the bucket (matching the format used
@@ -58,14 +58,14 @@ by `export-bucket-objects`). Currently limited to the first 20 assets for testin
 Run:
 
 ```sh
-swift run export-library-keys
+swift run export-library-assets
 ```
 
 Output is written to stdout, one key per line. Redirect to a file if you want
 to keep it:
 
 ```sh
-swift run export-library-keys > library-keys.txt
+swift run export-library-assets > library-assets.txt
 ```
 
 #### Permissions

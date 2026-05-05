@@ -2,7 +2,7 @@ import Foundation
 import Photos
 
 @main
-struct ExportLibraryKeys {
+struct ExportLibraryAssets {
     static func main() async {
         let args = Array(CommandLine.arguments.dropFirst())
         let diagnose = args.contains("--diagnose")
