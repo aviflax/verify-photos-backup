@@ -4,6 +4,9 @@ import Photos
 @main
 struct ExportLibraryKeys {
     static func main() async {
+        let args = Array(CommandLine.arguments.dropFirst())
+        let diagnose = args.contains("--diagnose")
+
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
         guard status == .authorized || status == .limited else {
             FileHandle.standardError.write(Data(
@@ -16,7 +19,12 @@ struct ExportLibraryKeys {
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
         let assets = PHAsset.fetchAssets(with: options)
 
-        let limit = min(2000, assets.count)
+        if diagnose {
+            runDiagnostic(assets: assets)
+            return
+        }
+
+        let limit = min(1, assets.count)
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy/MM/dd"
 
