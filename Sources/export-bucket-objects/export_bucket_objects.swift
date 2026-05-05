@@ -2,7 +2,7 @@ import Foundation
 import SotoS3
 
 @main
-struct ExportBucketKeys {
+struct ExportBucketObjects {
     static func main() async throws {
         let env = ProcessInfo.processInfo.environment
         guard
@@ -18,7 +18,7 @@ struct ExportBucketKeys {
         }
 
         let region = env["B2_REGION"] ?? endpointRegion(endpoint) ?? "us-west-002"
-        let outputPath = CommandLine.arguments.dropFirst().first ?? "bucket-keys.txt"
+        let outputPath = CommandLine.arguments.dropFirst().first ?? "bucket-objects.csv"
 
         let client = AWSClient(
             credentialProvider: .static(accessKeyId: keyId, secretAccessKey: appKey)
@@ -37,26 +37,33 @@ struct ExportBucketKeys {
         }
         defer { try? handle.close() }
 
+        handle.write(Data("key,size,last_modified\n".utf8))
+
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime]
+
         var pageNumber = 0
         var count = 0
-        
+
         let paginator = s3.listObjectsV2Paginator(.init(bucket: bucket))
         for try await page in paginator {
             pageNumber += 1
             print("Page \(pageNumber)...", terminator: "")
-            
+
             for object in page.contents ?? [] {
                 guard let key = object.key else { continue }
-                handle.write(Data((key + "\n").utf8))
+                let size = object.size.map(String.init) ?? ""
+                let lastModified = object.lastModified.map { isoFormatter.string(from: $0) } ?? ""
+                handle.write(Data("\(csvField(key)),\(size),\(lastModified)\n".utf8))
                 count += 1
             }
-            
+
             print("✅")
         }
 
         try await client.shutdown()
 
-        print("\n\nWrote \(count) keys to \(outputPath)")
+        print("\n\nWrote \(count) objects to \(outputPath)")
     }
 }
 
@@ -65,4 +72,11 @@ private func endpointRegion(_ endpoint: String) -> String? {
     guard let host = URL(string: endpoint)?.host else { return nil }
     let parts = host.split(separator: ".")
     return parts.count >= 2 ? String(parts[1]) : nil
+}
+
+private func csvField(_ s: String) -> String {
+    if s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r") {
+        return "\"\(s.replacingOccurrences(of: "\"", with: "\"\""))\""
+    }
+    return s
 }

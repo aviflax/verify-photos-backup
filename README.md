@@ -8,10 +8,18 @@ missing.
 
 ## Usage
 
-### `export-bucket-keys`
+### `export-bucket-objects`
 
-Downloads the list of all object keys in a Backblaze B2 bucket (via its
-S3-compatible API) and writes them to a text file, one key per line.
+Downloads the list of all objects in a Backblaze B2 bucket (via its
+S3-compatible API) and writes them to a CSV file with one row per object.
+
+The CSV has a header row and these columns:
+
+- `key` — the object key
+- `size` — size in bytes
+- `last_modified` — upload timestamp in ISO 8601 (e.g. `2024-08-15T14:23:11Z`).
+  This is the only date S3 exposes via `ListObjectsV2`; the photo's own
+  creation date is encoded in the key prefix (`YYYY/MM/DD/...`).
 
 Set the following environment variables:
 
@@ -24,10 +32,10 @@ Set the following environment variables:
 Then run:
 
 ```sh
-swift run export-bucket-keys [output-path]
+swift run export-bucket-objects [output-path]
 ```
 
-`output-path` defaults to `bucket-keys.txt` in the current directory.
+`output-path` defaults to `bucket-objects.csv` in the current directory.
 
 #### Example
 
@@ -36,16 +44,16 @@ B2_KEY_ID=00xxxxxxxxxxxxx \
 B2_APPLICATION_KEY=K00xxxxxxxxxxxxxxxxxxxxxxxxxxxx \
 B2_BUCKET=my-photos \
 B2_S3_ENDPOINT=https://s3.us-west-002.backblazeb2.com \
-  swift run export-bucket-keys bucket-keys.txt
+  swift run export-bucket-objects bucket-objects.csv
 ```
 
-On completion the script prints the number of keys written.
+On completion the script prints the number of objects written.
 
 ### `export-library-keys`
 
 Enumerates the local Photos library via PhotoKit and prints, for each asset,
 the key under which it would be stored in the bucket (matching the format used
-by `export-bucket-keys`). Currently limited to the first 20 assets for testing.
+by `export-bucket-objects`). Currently limited to the first 20 assets for testing.
 
 Run:
 
