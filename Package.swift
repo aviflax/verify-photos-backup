@@ -5,6 +5,9 @@ import PackageDescription
 
 let package = Package(
     name: "verify-photos-backup",
+    platforms: [
+        .macOS(.v10_15),
+    ],
     dependencies: [
         .package(url: "https://github.com/soto-project/soto.git", from: "7.14.0"),
     ],

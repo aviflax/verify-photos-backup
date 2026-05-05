@@ -23,7 +23,6 @@ struct VerifyPhotosBackup {
         let client = AWSClient(
             credentialProvider: .static(accessKeyId: keyId, secretAccessKey: appKey)
         )
-        defer { try? client.syncShutdown() }
 
         let s3 = S3(
             client: client,
@@ -38,17 +37,26 @@ struct VerifyPhotosBackup {
         }
         defer { try? handle.close() }
 
+        var pageNumber = 0
         var count = 0
+        
         let paginator = s3.listObjectsV2Paginator(.init(bucket: bucket))
         for try await page in paginator {
+            pageNumber += 1
+            print("Page \(pageNumber)...", terminator: "")
+            
             for object in page.contents ?? [] {
                 guard let key = object.key else { continue }
                 handle.write(Data((key + "\n").utf8))
                 count += 1
             }
+            
+            print("✅")
         }
 
-        print("wrote \(count) keys to \(outputPath)")
+        try await client.shutdown()
+
+        print("\n\nWrote \(count) keys to \(outputPath)")
     }
 }
 
