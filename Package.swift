@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "verify-photos-backup",
     platforms: [
-        .macOS(.v10_15),
+        .macOS(.v15),
     ],
     dependencies: [
         .package(url: "https://github.com/soto-project/soto.git", from: "7.14.0"),
@@ -15,10 +15,13 @@ let package = Package(
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .executableTarget(
-            name: "verify-photos-backup",
+            name: "export-bucket-keys",
             dependencies: [
                 .product(name: "SotoS3", package: "soto"),
             ]
+        ),
+        .executableTarget(
+            name: "export-library-keys"
         ),
     ]
 )

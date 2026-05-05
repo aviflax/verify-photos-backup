@@ -2,7 +2,7 @@ import Foundation
 import SotoS3
 
 @main
-struct VerifyPhotosBackup {
+struct ExportBucketKeys {
     static func main() async throws {
         let env = ProcessInfo.processInfo.environment
         guard
@@ -18,7 +18,7 @@ struct VerifyPhotosBackup {
         }
 
         let region = env["B2_REGION"] ?? endpointRegion(endpoint) ?? "us-west-002"
-        let outputPath = CommandLine.arguments.dropFirst().first ?? "keys.txt"
+        let outputPath = CommandLine.arguments.dropFirst().first ?? "bucket-keys.txt"
 
         let client = AWSClient(
             credentialProvider: .static(accessKeyId: keyId, secretAccessKey: appKey)
