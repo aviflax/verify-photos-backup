@@ -16,7 +16,7 @@ struct ExportLibraryKeys {
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
         let assets = PHAsset.fetchAssets(with: options)
 
-        let limit = min(20, assets.count)
+        let limit = min(2000, assets.count)
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy/MM/dd"
 
@@ -34,6 +34,14 @@ struct ExportLibraryKeys {
             let filename = resources.first?.originalFilename ?? ""
             let ext = (filename as NSString).pathExtension.lowercased()
             print("\(datePath)/\(idPart).\(ext)")
+
+            if (i + 1) % 100 == 0 {
+                let percent = (i + 1) * 100 / limit
+                FileHandle.standardError.write(Data(
+                    "\r\u{1B}[2K\(i + 1) out of \(limit) (\(percent)%)".utf8
+                ))
+            }
         }
+        FileHandle.standardError.write(Data("\n".utf8))
     }
 }
