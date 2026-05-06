@@ -51,22 +51,28 @@ On completion the script prints the number of objects written.
 
 ### `export-library-assets`
 
-Enumerates the local Photos library via PhotoKit and prints, for each asset,
-the key under which it would be stored in the bucket (matching the format used
-by `export-bucket-objects`). Currently limited to the first 20 assets for testing.
+Enumerates the local Photos library via PhotoKit and writes a CSV with one row
+per asset, describing the **original** (unedited) version of each asset. For
+an edited photo this is the `.originalPhoto` resource; for an unedited photo
+or video it's the sole `.photo` / `.video` resource. The columns are the
+properties needed to match a library asset against bucket objects produced by
+`export-bucket-objects`:
+
+- `creation_date` — the asset's creation date in ISO 8601 (e.g. `1998-11-01T19:00:00Z`)
+- `original_filename` — the resource's original filename, e.g. `IMG_1234.HEIC`
+- `size` — size of the original resource in bytes
 
 Run:
 
 ```sh
-swift run export-library-assets
+swift run export-library-assets [output-path]
 ```
 
-Output is written to stdout, one key per line. Redirect to a file if you want
-to keep it:
+`output-path` defaults to `library-assets.csv` in the current directory.
 
-```sh
-swift run export-library-assets > library-assets.txt
-```
+A `--diagnose` flag is also available; it skips the CSV output and instead
+prints detailed property dumps for the first few assets to stderr (useful for
+investigating the underlying PhotoKit objects).
 
 #### Permissions
 
