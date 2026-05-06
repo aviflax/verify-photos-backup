@@ -7,6 +7,4 @@ DerivedData/
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
 *keys.txt
-*keys.csv
-*assets.csv
-*objects.csv
+*.csv*

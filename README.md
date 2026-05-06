@@ -1,10 +1,13 @@
 # verify-photos-backup
 
 A small Swift project for verifying that a local Photos library is fully backed
-up to a Backblaze B2 bucket. It contains two scripts: one that exports the keys
-present in the bucket, and one that exports the keys that *should* be present
-based on the local Photos library. Diffing their outputs reveals what is
-missing.
+up to a Backblaze B2 bucket. It contains three scripts:
+
+1. `export-bucket-objects` — list every object in the bucket to a CSV.
+2. `export-library-assets` — list every asset in the local Photos library to a CSV.
+3. `verify-backup` — read both CSVs and produce `matched.csv` (assets
+   that have a corresponding bucket object) and `not-found.csv` (assets with no
+   match — i.e. potentially missing from the backup).
 
 ## Usage
 
@@ -80,3 +83,33 @@ PhotoKit access on macOS requires the running terminal (Terminal, iTerm, etc.)
 to have been granted access to your Photos library in
 **System Settings → Privacy & Security → Photos**. The first run may fail
 silently if access has not been granted; grant access and re-run.
+
+### `verify-backup`
+
+Reads `library-assets.csv` and `bucket-objects.csv` (the outputs of the two
+scripts above) and writes:
+
+- `matched.csv` — one row per library asset that has a corresponding bucket
+  object, with columns `creation_date,original_filename,size,bucket_key,bucket_last_modified`.
+- `not-found.csv` — one row per library asset with no match, columns
+  `creation_date,original_filename,size`.
+
+Matching is by `(date, size)`: a library asset matches a bucket object if the
+asset's `creation_date` (formatted as `YYYY/MM/DD` in the current device's
+local timezone) equals the bucket key's date prefix, and the byte sizes are
+equal. Each bucket object can match at most one library asset; if multiple
+assets share the same date and size, they consume distinct bucket objects.
+
+Assumes the bucket key prefixes were generated using the same local timezone
+as the device running this script. If the backup ran in a different timezone,
+date-edge cases may misclassify by ±1 day.
+
+Run:
+
+```sh
+swift run verify-backup [library-csv] [bucket-csv]
+```
+
+Defaults: `library-assets.csv` and `bucket-objects.csv` in the current
+directory. Outputs are always written as `matched.csv` and `not-found.csv` in
+the current directory.

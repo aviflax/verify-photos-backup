@@ -23,5 +23,8 @@ let package = Package(
         .executableTarget(
             name: "export-library-assets"
         ),
+        .executableTarget(
+            name: "verify-backup"
+        ),
     ]
 )
