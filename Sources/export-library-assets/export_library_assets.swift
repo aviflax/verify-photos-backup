@@ -50,12 +50,17 @@ struct ExportLibraryAssets {
             }
             let dateStr = isoFormatter.string(from: date)
             let resources = PHAssetResource.assetResources(for: asset)
-            let original = resources.first(where: {
-                $0.type == .originalPhoto || $0.type == .originalVideo
-            }) ?? resources.first(where: {
-                $0.type == .photo || $0.type == .video
-            })
-            guard let resource = original else {
+            var originalResource: PHAssetResource?
+            for r in resources {
+                switch r.type {
+                case .photo, .video:
+                    originalResource = r
+                default:
+                    break
+                }
+                if originalResource != nil { break }
+            }
+            guard let resource = originalResource else {
                 FileHandle.standardError.write(Data(
                     "\nasset \(asset.localIdentifier) has no photo/video resource; skipping\n".utf8
                 ))

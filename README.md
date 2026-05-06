@@ -52,9 +52,9 @@ On completion the script prints the number of objects written.
 ### `export-library-assets`
 
 Enumerates the local Photos library via PhotoKit and writes a CSV with one row
-per asset, describing the **original** (unedited) version of each asset. For
-an edited photo this is the `.originalPhoto` resource; for an unedited photo
-or video it's the sole `.photo` / `.video` resource. The columns are the
+per asset, describing the **original** (unedited) version of each asset — the
+`PHAssetResource` of type `.photo` or `.video`, which Apple's docs describe as
+providing the original photo/video data for the asset. The columns are the
 properties needed to match a library asset against bucket objects produced by
 `export-bucket-objects`:
 
