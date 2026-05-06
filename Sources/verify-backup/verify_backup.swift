@@ -25,6 +25,16 @@ struct VerifyBackup {
             exit(1)
         }
 
+        let assetCount = libraryRows.count - 1
+        let objectCount = bucketRows.count - 1
+
+        let nf = NumberFormatter()
+        nf.numberStyle = .decimal
+
+        FileHandle.standardError.write(Data(
+            "Loaded \(nf.string(for: assetCount) ?? "\(assetCount)") library assets and \(nf.string(for: objectCount) ?? "\(objectCount)") bucket objects.\n".utf8
+        ))
+
         // Build bucket index: "YYYY/MM/DD|size" -> [(key, last_modified)]
         var bucketIndex: [String: [(key: String, lastModified: String)]] = [:]
         for row in bucketRows.dropFirst() {
@@ -66,6 +76,19 @@ struct VerifyBackup {
         var notFoundCount = 0
 
         for row in libraryRows.dropFirst() {
+            defer {
+                let processed = matchedCount + notFoundCount
+                if processed % 100 == 0 && processed > 0 {
+                    let processedStr = nf.string(for: processed) ?? "\(processed)"
+                    let totalStr = nf.string(for: assetCount) ?? "\(assetCount)"
+                    let matchedStr = nf.string(for: matchedCount) ?? "\(matchedCount)"
+                    let notFoundStr = nf.string(for: notFoundCount) ?? "\(notFoundCount)"
+                    let percent = assetCount > 0 ? processed * 100 / assetCount : 0
+                    FileHandle.standardError.write(Data(
+                        "\r\u{1B}[2K\(processedStr) of \(totalStr) assets (\(percent)%) — \(matchedStr) matched, \(notFoundStr) not found".utf8
+                    ))
+                }
+            }
             guard row.count >= 3 else { continue }
             let creationDate = row[0]
             let filename = row[1]
@@ -99,8 +122,13 @@ struct VerifyBackup {
             }
         }
 
+        FileHandle.standardError.write(Data("\n".utf8))
+
         let total = matchedCount + notFoundCount
-        print("Matched \(matchedCount) of \(total) assets; \(notFoundCount) not found.")
+        let matchedStr = nf.string(for: matchedCount) ?? "\(matchedCount)"
+        let totalStr = nf.string(for: total) ?? "\(total)"
+        let notFoundStr = nf.string(for: notFoundCount) ?? "\(notFoundCount)"
+        print("Matched \(matchedStr) of \(totalStr) assets; \(notFoundStr) not found.")
         print("Wrote: \(matchedPath), \(notFoundPath)")
     }
 }
