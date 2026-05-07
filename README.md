@@ -1,11 +1,16 @@
 # verify-photos-backup
 
 A small Swift project for verifying that a local Photos library is fully backed
-up to a Backblaze B2 bucket. It contains three scripts:
+up to a Backblaze B2 bucket.
+
+The primary tool is `verify-backup`, which composes the full pipeline (list
+the bucket, enumerate the library, match, and write the result) in a single
+run. Three smaller scripts expose the individual stages over CSV files, useful
+for diagnostics or for re-running a single stage:
 
 1. `export-bucket-objects` — list every object in the bucket to a CSV.
 2. `export-library-assets` — list every asset in the local Photos library to a CSV.
-3. `verify-backup` — read both CSVs and produce `matched.csv` (assets
+3. `match` — read both CSVs and produce `matched.csv` (assets
    that have a corresponding bucket object) and `not-found.csv` (assets with no
    match — i.e. potentially missing from the backup).
 
@@ -84,7 +89,7 @@ to have been granted access to your Photos library in
 **System Settings → Privacy & Security → Photos**. The first run may fail
 silently if access has not been granted; grant access and re-run.
 
-### `verify-backup`
+### `match`
 
 Reads `library-assets.csv` and `bucket-objects.csv` (the outputs of the two
 scripts above) and writes:
@@ -107,9 +112,28 @@ date-edge cases may misclassify by ±1 day.
 Run:
 
 ```sh
-swift run verify-backup [library-csv] [bucket-csv]
+swift run match [library-csv] [bucket-csv]
 ```
 
 Defaults: `library-assets.csv` and `bucket-objects.csv` in the current
 directory. Outputs are always written as `matched.csv` and `not-found.csv` in
 the current directory.
+
+### `verify-backup`
+
+Runs the full pipeline in a single process: lists the B2 bucket, enumerates
+the local Photos library (concurrently with the listing), matches the two,
+and writes `matched.csv` and `not-found.csv`. Equivalent to running the three
+scripts above in sequence, but without the intermediate CSV round-trips.
+
+Set the same B2 environment variables as `export-bucket-objects` and grant
+Photos access to the running terminal (see permissions note above), then run:
+
+```sh
+swift run verify-backup [--debug]
+```
+
+With `--debug`, the fetch stages also write `bucket-objects.csv` and
+`library-assets.csv` as side effects, matching the output of the standalone
+scripts. Useful for diagnosing a discrepancy without re-running the slow
+fetch steps.

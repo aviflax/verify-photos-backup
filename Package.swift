@@ -24,7 +24,13 @@ let package = Package(
             name: "export-library-assets"
         ),
         .executableTarget(
-            name: "verify-backup"
+            name: "match"
+        ),
+        .executableTarget(
+            name: "verify-backup",
+            dependencies: [
+                .product(name: "SotoS3", package: "soto"),
+            ]
         ),
     ]
 )

@@ -1,0 +1,51 @@
+import Foundation
+
+func csvField(_ s: String) -> String {
+    if s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r") {
+        return "\"\(s.replacingOccurrences(of: "\"", with: "\"\""))\""
+    }
+    return s
+}
+
+func csvRow(_ obj: BucketObject, isoFormatter: ISO8601DateFormatter) -> String {
+    "\(csvField(obj.key)),\(obj.size),\(isoFormatter.string(from: obj.lastModified))\n"
+}
+
+func csvRow(_ asset: LibraryAsset, isoFormatter: ISO8601DateFormatter) -> String {
+    "\(isoFormatter.string(from: asset.creationDate)),\(csvField(asset.originalFilename)),\(asset.size)\n"
+}
+
+func csvRow(_ matched: MatchedAsset, isoFormatter: ISO8601DateFormatter) -> String {
+    let a = matched.asset
+    let b = matched.bucketObject
+    return "\(isoFormatter.string(from: a.creationDate)),\(csvField(a.originalFilename)),\(a.size),\(csvField(b.key)),\(isoFormatter.string(from: b.lastModified))\n"
+}
+
+func openCSV(at path: String, header: String) throws -> FileHandle {
+    FileManager.default.createFile(atPath: path, contents: nil)
+    guard let h = FileHandle(forWritingAtPath: path) else {
+        throw VerifyBackupError("cannot open \(path) for writing")
+    }
+    h.write(Data("\(header)\n".utf8))
+    return h
+}
+
+func writeMatchResult(_ result: MatchResult, matchedPath: String, notFoundPath: String) throws {
+    let mh = try openCSV(
+        at: matchedPath,
+        header: "creation_date,original_filename,size,bucket_key,bucket_last_modified"
+    )
+    defer { try? mh.close() }
+    let nh = try openCSV(at: notFoundPath, header: "creation_date,original_filename,size")
+    defer { try? nh.close() }
+
+    let isoFormatter = ISO8601DateFormatter()
+    isoFormatter.formatOptions = [.withInternetDateTime]
+
+    for matched in result.matched {
+        mh.write(Data(csvRow(matched, isoFormatter: isoFormatter).utf8))
+    }
+    for asset in result.notFound {
+        nh.write(Data(csvRow(asset, isoFormatter: isoFormatter).utf8))
+    }
+}
