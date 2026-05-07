@@ -7,6 +7,8 @@ struct LibraryAsset: Sendable {
     let size: Int64
 }
 
+private let progressBatch = 1000
+
 func fetchLibraryAssets(
     reporter: ProgressReporter,
     debugCSVPath: String? = nil
@@ -31,8 +33,15 @@ func fetchLibraryAssets(
 
     var result: [LibraryAsset] = []
     result.reserveCapacity(assetCount)
+    var pendingProgress = 0
 
     for i in 0..<assetCount {
+        pendingProgress += 1
+        if pendingProgress >= progressBatch {
+            await reporter.incrementLibrary(by: pendingProgress, total: assetCount)
+            pendingProgress = 0
+        }
+
         let asset = assets.object(at: i)
         guard let date = asset.creationDate else {
             eprint("[library] asset \(asset.localIdentifier) has no creationDate; skipping\n")
@@ -61,11 +70,10 @@ func fetchLibraryAssets(
         if let h = debugHandle {
             h.write(Data(csvRow(la, isoFormatter: isoFormatter).utf8))
         }
+    }
 
-        let processed = i + 1
-        if processed % 1000 == 0 || processed == assetCount {
-            await reporter.recordLibrary(processed: processed, total: assetCount)
-        }
+    if pendingProgress > 0 {
+        await reporter.incrementLibrary(by: pendingProgress, total: assetCount)
     }
 
     return result

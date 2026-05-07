@@ -52,7 +52,8 @@ actor ProgressReporter {
         render()
     }
 
-    func recordLibrary(processed: Int, total: Int) {
+    func incrementLibrary(by delta: Int, total: Int) {
+        let processed = (library?.processed ?? 0) + delta
         library = LibraryProgress(processed: processed, total: total)
         render()
     }
