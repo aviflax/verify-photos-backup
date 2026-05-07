@@ -7,7 +7,7 @@ struct Match {
         let libraryPath = args.first ?? "library-assets.csv"
         let bucketPath = args.count > 1 ? args[1] : "bucket-objects.csv"
         let matchedPath = "matched.csv"
-        let notFoundPath = "not-found.csv"
+        let notFoundPath = "asset-not-found-in-bucket.csv"
 
         let libraryRows = try readCSV(at: libraryPath)
         let bucketRows = try readCSV(at: bucketPath)
