@@ -9,3 +9,4 @@ DerivedData/
 *keys.txt
 *.csv*
 /.claude/
+/reports/

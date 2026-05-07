@@ -133,7 +133,10 @@ Photos access to the running terminal (see permissions note above), then run:
 swift run verify-backup [--debug]
 ```
 
+Each run creates a fresh report directory under `reports/` (`reports/report-01/`,
+`reports/report-02/`, …) and writes `matched.csv` and `not-found.csv` there.
+
 With `--debug`, the fetch stages also write `bucket-objects.csv` and
-`library-assets.csv` as side effects, matching the output of the standalone
-scripts. Useful for diagnosing a discrepancy without re-running the slow
-fetch steps.
+`library-assets.csv` into the same report directory, matching the output of
+the standalone scripts. Useful for diagnosing a discrepancy without
+re-running the slow fetch steps.

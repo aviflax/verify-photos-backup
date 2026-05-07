@@ -25,8 +25,10 @@ struct VerifyBackup {
         let args = Array(CommandLine.arguments.dropFirst())
         let debug = args.contains("--debug")
 
-        let bucketDebugPath: String? = debug ? "bucket-objects.csv" : nil
-        let libraryDebugPath: String? = debug ? "library-assets.csv" : nil
+        let reportDir = try resolveReportDir()
+        eprint("Report directory: \(reportDir)/\n")
+        let bucketDebugPath = debug ? "\(reportDir)/bucket-objects.csv" : nil
+        let libraryDebugPath = debug ? "\(reportDir)/library-assets.csv" : nil
 
         let config = try b2ConfigFromEnv()
 
@@ -63,14 +65,33 @@ struct VerifyBackup {
         }
         eprint("\n")
 
-        try writeMatchResult(result, matchedPath: "matched.csv", notFoundPath: "not-found.csv")
+        try writeMatchResult(
+            result,
+            matchedPath: "\(reportDir)/matched.csv",
+            notFoundPath: "\(reportDir)/not-found.csv"
+        )
 
         print(
             "Matched \(fmt(result.matched.count)) of \(fmt(assets.count)) assets; \(fmt(result.notFound.count)) not found."
         )
-        print("Wrote: matched.csv, not-found.csv")
+        print("Wrote: \(reportDir)/matched.csv, \(reportDir)/not-found.csv")
         if debug {
-            print("Debug CSVs: bucket-objects.csv, library-assets.csv")
+            print("Debug CSVs: \(reportDir)/bucket-objects.csv, \(reportDir)/library-assets.csv")
         }
     }
+}
+
+private func resolveReportDir() throws -> String {
+    let fm = FileManager.default
+    try fm.createDirectory(atPath: "reports", withIntermediateDirectories: true)
+    for i in 1...99 {
+        let candidate = "reports/" + String(format: "report-%02d", i)
+        if !fm.fileExists(atPath: candidate) {
+            try fm.createDirectory(atPath: candidate, withIntermediateDirectories: false)
+            return candidate
+        }
+    }
+    throw VerifyBackupError(
+        "no available report directory: reports/report-01..reports/report-99 all exist"
+    )
 }
