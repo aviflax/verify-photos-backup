@@ -1,4 +1,4 @@
-# 🚨🚨🚨 DO NOT USE THIS 🚨🚨🚨<br>🚨🚨🚨 IT *WILL* DELETE YOUR DATA 🚨🚨🚨
+# 🚨🚨🚨 DO NOT USE THIS 🚨🚨🚨<br>🚨🚨🚨 IT MIGHT DELETE YOUR DATA 🚨🚨🚨
 
 **Copyright © 2026 Avi Flax. All Rights Reserved.**
 
