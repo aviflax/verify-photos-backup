@@ -17,8 +17,8 @@ CODE.**
 
 # verify-photos-backup
 
-A small Swift tool for verifying that a local Photos library is fully backed
-up to a Backblaze B2 bucket. It lists every object in the bucket, enumerates
+A tool for verifying that a local Photos library is fully backed up to a
+Backblaze B2 bucket. It lists every object in the bucket, enumerates
 every asset in the local Photos library (concurrently with the listing),
 matches the two by `(date, size)`, and writes:
 
