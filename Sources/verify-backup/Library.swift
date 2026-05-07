@@ -7,7 +7,10 @@ struct LibraryAsset: Sendable {
     let size: Int64
 }
 
-func fetchLibraryAssets(debugCSVPath: String? = nil) async throws -> [LibraryAsset] {
+func fetchLibraryAssets(
+    reporter: ProgressReporter,
+    debugCSVPath: String? = nil
+) async throws -> [LibraryAsset] {
     let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
     guard status == .authorized || status == .limited else {
         throw VerifyBackupError("Photos access not granted (status: \(status.rawValue))")
@@ -61,8 +64,7 @@ func fetchLibraryAssets(debugCSVPath: String? = nil) async throws -> [LibraryAss
 
         let processed = i + 1
         if processed % 1000 == 0 || processed == assetCount {
-            let percent = assetCount > 0 ? processed * 100 / assetCount : 0
-            eprint("[library] \(processed)/\(assetCount) (\(percent)%)\n")
+            await reporter.recordLibrary(processed: processed, total: assetCount)
         }
     }
 

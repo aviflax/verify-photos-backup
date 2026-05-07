@@ -42,6 +42,7 @@ func endpointRegion(_ endpoint: String) -> String? {
 
 func fetchBucketObjects(
     config: B2Config,
+    reporter: ProgressReporter,
     debugCSVPath: String? = nil
 ) async throws -> [BucketObject] {
     let client = AWSClient(
@@ -49,7 +50,9 @@ func fetchBucketObjects(
     )
 
     do {
-        let result = try await listAllObjects(client: client, config: config, debugCSVPath: debugCSVPath)
+        let result = try await listAllObjects(
+            client: client, config: config, reporter: reporter, debugCSVPath: debugCSVPath
+        )
         try await client.shutdown()
         return result
     } catch {
@@ -61,6 +64,7 @@ func fetchBucketObjects(
 private func listAllObjects(
     client: AWSClient,
     config: B2Config,
+    reporter: ProgressReporter,
     debugCSVPath: String?
 ) async throws -> [BucketObject] {
     let s3 = S3(
@@ -94,7 +98,7 @@ private func listAllObjects(
                 h.write(Data(csvRow(bo, isoFormatter: isoFormatter).utf8))
             }
         }
-        eprint("[bucket] page \(pageNumber) — \(result.count) objects total\n")
+        await reporter.recordBucket(page: pageNumber, objectCount: result.count)
     }
 
     return result

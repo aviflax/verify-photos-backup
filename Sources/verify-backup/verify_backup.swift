@@ -30,12 +30,24 @@ struct VerifyBackup {
 
         let config = try b2ConfigFromEnv()
 
+        let reporter = ProgressReporter()
         async let bucketTask = fetchBucketObjects(
-            config: config, debugCSVPath: bucketDebugPath
+            config: config, reporter: reporter, debugCSVPath: bucketDebugPath
         )
-        async let libraryTask = fetchLibraryAssets(debugCSVPath: libraryDebugPath)
+        async let libraryTask = fetchLibraryAssets(
+            reporter: reporter, debugCSVPath: libraryDebugPath
+        )
 
-        let (objects, assets) = try await (bucketTask, libraryTask)
+        let objects: [BucketObject]
+        let assets: [LibraryAsset]
+        do {
+            objects = try await bucketTask
+            assets = try await libraryTask
+        } catch {
+            await reporter.finish()
+            throw error
+        }
+        await reporter.finish()
 
         let nf = NumberFormatter()
         nf.numberStyle = .decimal
