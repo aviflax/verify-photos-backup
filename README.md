@@ -11,7 +11,7 @@ for diagnostics or for re-running a single stage:
 1. `export-bucket-objects` — list every object in the bucket to a CSV.
 2. `export-library-assets` — list every asset in the local Photos library to a CSV.
 3. `match` — read both CSVs and produce `matched.csv` (assets
-   that have a corresponding bucket object) and `asset-not-found-in-bucket.csv` (assets with no
+   that have a corresponding bucket object) and `assets-not-found-in-bucket.csv` (assets with no
    match — i.e. potentially missing from the backup).
 
 ## Usage
@@ -96,7 +96,7 @@ scripts above) and writes:
 
 - `matched.csv` — one row per library asset that has a corresponding bucket
   object, with columns `creation_date,original_filename,size,bucket_key,bucket_last_modified`.
-- `asset-not-found-in-bucket.csv` — one row per library asset with no match, columns
+- `assets-not-found-in-bucket.csv` — one row per library asset with no match, columns
   `creation_date,original_filename,size`.
 
 Matching is by `(date, size)`: a library asset matches a bucket object if the
@@ -116,14 +116,14 @@ swift run match [library-csv] [bucket-csv]
 ```
 
 Defaults: `library-assets.csv` and `bucket-objects.csv` in the current
-directory. Outputs are always written as `matched.csv` and `asset-not-found-in-bucket.csv` in
+directory. Outputs are always written as `matched.csv` and `assets-not-found-in-bucket.csv` in
 the current directory.
 
 ### `verify-backup`
 
 Runs the full pipeline in a single process: lists the B2 bucket, enumerates
 the local Photos library (concurrently with the listing), matches the two,
-and writes `matched.csv` and `asset-not-found-in-bucket.csv`. Equivalent to running the three
+and writes `matched.csv` and `assets-not-found-in-bucket.csv`. Equivalent to running the three
 scripts above in sequence, but without the intermediate CSV round-trips.
 
 Set the same B2 environment variables as `export-bucket-objects` and grant
@@ -134,7 +134,7 @@ swift run verify-backup [--debug]
 ```
 
 Each run creates a fresh report directory under `reports/` (`reports/report-01/`,
-`reports/report-02/`, …) and writes `matched.csv` and `asset-not-found-in-bucket.csv` there.
+`reports/report-02/`, …) and writes `matched.csv` and `assets-not-found-in-bucket.csv` there.
 
 With `--debug`, the fetch stages also write `bucket-objects.csv` and
 `library-assets.csv` into the same report directory, matching the output of

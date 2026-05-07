@@ -68,13 +68,13 @@ struct VerifyBackup {
         try writeMatchResult(
             result,
             matchedPath: "\(reportDir)/matched.csv",
-            notFoundPath: "\(reportDir)/asset-not-found-in-bucket.csv"
+            notFoundPath: "\(reportDir)/assets-not-found-in-bucket.csv"
         )
 
         print(
             "Matched \(fmt(result.matched.count)) of \(fmt(assets.count)) assets; \(fmt(result.notFound.count)) not found."
         )
-        print("Wrote: \(reportDir)/matched.csv, \(reportDir)/asset-not-found-in-bucket.csv")
+        print("Wrote: \(reportDir)/matched.csv, \(reportDir)/assets-not-found-in-bucket.csv")
         if debug {
             print("Debug CSVs: \(reportDir)/bucket-objects.csv, \(reportDir)/library-assets.csv")
         }
