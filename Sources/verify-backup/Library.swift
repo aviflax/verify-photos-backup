@@ -44,7 +44,7 @@ func fetchLibraryAssets(
 
         let asset = assets.object(at: i)
         guard let date = asset.creationDate else {
-            eprint("[library] asset \(asset.localIdentifier) has no creationDate; skipping\n")
+            eprint("\n[library] asset \(asset.localIdentifier) has no creationDate; skipping\n")
             continue
         }
         let resources = PHAssetResource.assetResources(for: asset)
@@ -54,11 +54,11 @@ func fetchLibraryAssets(
             break
         }
         guard let resource = originalResource else {
-            eprint("[library] asset \(asset.localIdentifier) has no photo/video resource; skipping\n")
+            eprint("\n[library] asset \(asset.localIdentifier) has no photo/video resource; skipping\n")
             continue
         }
         guard let size = resourceFileSize(resource) else {
-            eprint("[library] asset \(asset.localIdentifier) has no fileSize; skipping\n")
+            eprint("\n[library] asset \(asset.localIdentifier) has no fileSize; skipping\n")
             continue
         }
         let la = LibraryAsset(
