@@ -18,6 +18,21 @@ timezone) equals the bucket key's date prefix, and the byte sizes are equal.
 Each bucket object can match at most one library asset; if multiple assets
 share the same date and size, they consume distinct bucket objects.
 
+The natural thing would be to match by an asset identifier rather than by
+`(date, size)`, but inspection of the bucket keys produced by the existing
+backup pipeline shows that they appear to embed PhotoKit's
+`PHAsset.localIdentifier` — a UUID that is *local to the device and library
+that produced it*. A localIdentifier is regenerated when the library is
+rebuilt or restored on a different device (a new Mac, a fresh install, an
+iCloud Photos re-download, etc.), so the IDs encoded in older bucket keys no
+longer correspond to anything PhotoKit reports for the same photo today.
+PhotoKit also exposes a stable `cloudIdentifier` via
+`PHPhotoLibrary.cloudIdentifierMappings(forLocalIdentifiers:)`, but the
+backup's keys don't use it. `(creation_date, size)` is the coarsest
+identity that's stable across library rebuilds — coarse enough to risk
+collisions when many assets share the same day and exact byte size, but in
+practice good enough to flag the backup gaps this tool is meant to surface.
+
 Assumes the bucket key prefixes were generated using the same local timezone
 as the device running the tool. If the backup ran in a different timezone,
 date-edge cases may misclassify by ±1 day.
