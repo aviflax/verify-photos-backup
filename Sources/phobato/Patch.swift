@@ -82,9 +82,11 @@ private func runUploads(
         timeout: .minutes(5)
     )
 
+    let totalBytes = items.reduce(Int64(0)) { $0 + $1.size }
     let sink = try PatchSink(
         reportDir: reportDir,
-        total: items.count
+        total: items.count,
+        totalBytes: totalBytes
     )
 
     let concurrency = 4
@@ -134,15 +136,31 @@ private func uploadOne(
         let tempURL = try await stageOriginalToTempFile(localId: item.localId)
         defer { try? FileManager.default.removeItem(at: tempURL) }
         let createReq = S3.CreateMultipartUploadRequest(bucket: bucket, key: key)
+        let tracker = BytesTracker()
+        let size = item.size
         // concurrentUploads: 1 — outer concurrency (4 assets) already saturates
         // a typical uplink; running 4×4=16 simultaneous part uploads makes each
         // part slow enough to risk timing out.
         _ = try await s3.multipartUpload(
             createReq, filename: tempURL.path, concurrentUploads: 1
-        )
+        ) { fraction in
+            let cumulative = Int64(fraction * Double(size))
+            let delta = await tracker.advance(to: cumulative)
+            if delta > 0 { await sink.addBytes(delta) }
+        }
         await sink.recordSuccess(item: item, key: key)
     } catch {
         await sink.recordFailure(item: item, key: key, error: error)
+    }
+}
+
+private actor BytesTracker {
+    private var sent: Int64 = 0
+    func advance(to cumulative: Int64) -> Int64 {
+        let delta = cumulative - sent
+        guard delta > 0 else { return 0 }
+        sent = cumulative
+        return delta
     }
 }
 
@@ -221,9 +239,11 @@ actor PatchSink {
     }
 
     private let total: Int
+    private let totalBytes: Int64
     private var completed = 0
     private var succeeded = 0
     private var failed = 0
+    private var bytesUploaded: Int64 = 0
     private let patchedHandle: FileHandle
     private let failuresHandle: FileHandle
     private let errorLogHandle: FileHandle
@@ -231,8 +251,9 @@ actor PatchSink {
     private var closed = false
     private var lastRenderedLineLength = 0
 
-    init(reportDir: String, total: Int) throws {
+    init(reportDir: String, total: Int, totalBytes: Int64) throws {
         self.total = total
+        self.totalBytes = totalBytes
         self.patchedHandle = try openCSV(
             at: "\(reportDir)/patched.csv",
             header: "sequence,creation_date,original_filename,size,local_id,cloud_id,bucket_key"
@@ -251,6 +272,11 @@ actor PatchSink {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
         self.isoFormatter = f
+    }
+
+    func addBytes(_ delta: Int64) {
+        bytesUploaded += delta
+        render()
     }
 
     func recordSuccess(item: NotFoundRow, key: String) {
@@ -303,8 +329,15 @@ actor PatchSink {
         let nf = NumberFormatter()
         nf.numberStyle = .decimal
         func fmt(_ n: Int) -> String { nf.string(for: n) ?? "\(n)" }
+        // Use decimal MB (1,000,000 bytes) — matches the convention macOS Finder
+        // uses for file sizes, so the numbers line up with what users see there.
+        let mbDone = Int(bytesUploaded / 1_000_000)
+        let mbTotal = Int(totalBytes / 1_000_000)
+        let bytePercent = totalBytes > 0
+            ? Int((Double(bytesUploaded) / Double(totalBytes)) * 100)
+            : 0
         let line =
-            "Patching: \(fmt(completed)) of \(fmt(total)) (\(percent)%) — \(fmt(succeeded)) succeeded, \(fmt(failed)) failed"
+            "Patching: \(fmt(completed)) of \(fmt(total)) (\(percent)%) — \(fmt(succeeded)) succeeded, \(fmt(failed)) failed — \(fmt(mbDone)) of \(fmt(mbTotal)) MB (\(bytePercent)%)"
         FileHandle.standardError.write(Data("\r\u{1B}[2K\(line)".utf8))
         lastRenderedLineLength = line.count
     }
