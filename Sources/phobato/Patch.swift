@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import NIOCore
 import Photos
 import SotoS3
 
@@ -71,10 +72,14 @@ private func runUploads(
     config: B2Config,
     client: AWSClient
 ) async throws {
+    // Soto's default per-HTTP-request timeout is 20s, which is too tight for
+    // a multipart part on a typical home uplink (~5MB parts) and causes
+    // HTTPClientError.deadlineExceeded on larger originals (videos, big PNGs).
     let s3 = S3(
         client: client,
         region: Region(rawValue: config.region),
-        endpoint: config.endpoint
+        endpoint: config.endpoint,
+        timeout: .minutes(5)
     )
 
     let sink = try PatchSink(
@@ -129,7 +134,12 @@ private func uploadOne(
         let tempURL = try await stageOriginalToTempFile(localId: item.localId)
         defer { try? FileManager.default.removeItem(at: tempURL) }
         let createReq = S3.CreateMultipartUploadRequest(bucket: bucket, key: key)
-        _ = try await s3.multipartUpload(createReq, filename: tempURL.path)
+        // concurrentUploads: 1 — outer concurrency (4 assets) already saturates
+        // a typical uplink; running 4×4=16 simultaneous part uploads makes each
+        // part slow enough to risk timing out.
+        _ = try await s3.multipartUpload(
+            createReq, filename: tempURL.path, concurrentUploads: 1
+        )
         await sink.recordSuccess(item: item, key: key)
     } catch {
         await sink.recordFailure(item: item, key: key, error: error)
