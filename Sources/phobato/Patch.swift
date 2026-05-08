@@ -125,6 +125,12 @@ private func runUploads(
     }
 }
 
+// 1 initial attempt + (maxAttempts - 1) in-process resume attempts.
+// On the final attempt, abortOnFail: true so a still-failing upload
+// is cleaned up server-side rather than left dangling on B2.
+private let maxAttempts = 3
+private let multipartPartSize: Int64 = 5 * 1024 * 1024
+
 private func uploadOne(
     item: NotFoundRow,
     bucket: String,
@@ -138,17 +144,51 @@ private func uploadOne(
         let createReq = S3.CreateMultipartUploadRequest(bucket: bucket, key: key)
         let tracker = BytesTracker()
         let size = item.size
-        // concurrentUploads: 1 — outer concurrency (4 assets) already saturates
-        // a typical uplink; running 4×4=16 simultaneous part uploads makes each
-        // part slow enough to risk timing out.
-        _ = try await s3.multipartUpload(
-            createReq, filename: tempURL.path, concurrentUploads: 1
-        ) { fraction in
+        let totalParts = Int((size + multipartPartSize - 1) / multipartPartSize)
+
+        @Sendable func progress(_ fraction: Double) async throws {
             let cumulative = Int64(fraction * Double(size))
             let delta = await tracker.advance(to: cumulative)
             if delta > 0 { await sink.addBytes(delta) }
         }
-        await sink.recordSuccess(item: item, key: key)
+
+        var resumeReq: S3.ResumeMultipartUploadRequest?
+        for attempt in 1...maxAttempts {
+            let isLast = attempt == maxAttempts
+            do {
+                // concurrentUploads: 1 — outer concurrency (4 assets) already
+                // saturates a typical uplink; running 4×4=16 simultaneous part
+                // uploads makes each part slow enough to risk timing out.
+                if let r = resumeReq {
+                    _ = try await s3.resumeMultipartUpload(
+                        r,
+                        filename: tempURL.path,
+                        concurrentUploads: 1,
+                        abortOnFail: isLast,
+                        progress: progress
+                    )
+                } else {
+                    _ = try await s3.multipartUpload(
+                        createReq,
+                        filename: tempURL.path,
+                        concurrentUploads: 1,
+                        abortOnFail: isLast,
+                        progress: progress
+                    )
+                }
+                await sink.recordSuccess(item: item, key: key)
+                return
+            } catch S3ErrorType.MultipartError.abortedUpload(let next, let underlying) {
+                // With abortOnFail=true on the last attempt, Soto rethrows the
+                // raw error rather than wrapping it; this branch only fires on
+                // non-final attempts.
+                let done = next.completedParts.count
+                await sink.info(
+                    "INFO: resuming upload of \(key) after error\n      \(done)/\(totalParts) parts already uploaded — \(underlying)"
+                )
+                resumeReq = next
+            }
+        }
     } catch {
         await sink.recordFailure(item: item, key: key, error: error)
     }
@@ -276,6 +316,13 @@ actor PatchSink {
 
     func addBytes(_ delta: Int64) {
         bytesUploaded += delta
+        render()
+    }
+
+    func info(_ message: String) {
+        // Erase the in-place progress line, write the message + newline,
+        // then re-render the progress line below.
+        FileHandle.standardError.write(Data("\r\u{1B}[2K\(message)\n".utf8))
         render()
     }
 
