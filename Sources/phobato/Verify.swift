@@ -13,7 +13,7 @@ struct Verify: AsyncParsableCommand {
 
     func run() async throws {
         let reportDir = try resolveReportDir()
-        eprint("Report directory: \(reportDir)/\n")
+        errPrint("Report directory: \(reportDir)/\n")
         let bucketDebugPath = debug ? "\(reportDir)/bucket-objects.csv" : nil
         let libraryDebugPath = debug ? "\(reportDir)/library-assets.csv" : nil
 
@@ -42,18 +42,18 @@ struct Verify: AsyncParsableCommand {
         nf.numberStyle = .decimal
         func fmt(_ n: Int) -> String { nf.string(for: n) ?? "\(n)" }
 
-        eprint(
+        errPrint(
             "Loaded \(fmt(assets.count)) library assets and \(fmt(objects.count)) bucket objects.\n"
         )
 
         let result = match(assets: assets, objects: objects) {
             processed, total, matched, notFound in
             let percent = total > 0 ? processed * 100 / total : 0
-            eprint(
+            errPrint(
                 "\r\u{1B}[2KMatching: \(fmt(processed)) of \(fmt(total)) (\(percent)%) — \(fmt(matched)) matched, \(fmt(notFound)) not found"
             )
         }
-        eprint("\n")
+        errPrint("\n")
 
         try writeMatchResult(
             result,

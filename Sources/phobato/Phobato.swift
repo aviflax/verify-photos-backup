@@ -7,7 +7,7 @@ struct PhobatoError: Error, CustomStringConvertible {
     var description: String { message }
 }
 
-func eprint(_ s: String) {
+func errPrint(_ s: String) {
     FileHandle.standardError.write(Data(s.utf8))
 }
 
@@ -20,7 +20,7 @@ struct Phobato: AsyncParsableCommand {
     )
 
     func run() throws {
-        eprint(Phobato.helpMessage() + "\n")
+        errPrint(Phobato.helpMessage() + "\n")
         throw ExitCode(1)
     }
 }
