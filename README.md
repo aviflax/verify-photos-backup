@@ -39,7 +39,11 @@ and writes:
   `creation_date,original_filename,size,bucket_key,bucket_last_modified`.
 - `assets-not-found-in-bucket.csv` — one row per library asset with no match
   (i.e. potentially missing from the backup), columns
-  `creation_date,original_filename,size`.
+  `creation_date,original_filename,size,local_id,cloud_id`. `local_id` is
+  `PHAsset.localIdentifier`; `cloud_id` is the stable
+  `PHCloudIdentifier.stringValue` from
+  `PHPhotoLibrary.cloudIdentifierMappings(forLocalIdentifiers:)`, or empty
+  when PhotoKit has no cloud mapping for that asset.
 
 Matching is by `(date, size)`: a library asset matches a bucket object if the
 asset's `creation_date` (formatted as `YYYY/MM/DD` in the device's local
@@ -50,10 +54,11 @@ share the same date and size, they consume distinct bucket objects.
 The natural thing would be to match by an asset identifier rather than by
 `(date, size)`, but inspection of the bucket keys produced by the existing
 backup pipeline shows that they appear to embed PhotoKit's
-`PHAsset.localIdentifier` — a UUID that is *local to the device and library
-that produced it*. A localIdentifier is regenerated when the library is
-rebuilt or restored on a different device (a new Mac, a fresh install, an
-iCloud Photos re-download, etc.), so the IDs encoded in older bucket keys no
+`PHAsset.localIdentifier` — an opaque string (of the form
+`<UUID>/L0/<NNN>`) that is *local to the device and library that produced
+it*. A localIdentifier is regenerated when the library is rebuilt or
+restored on a different device (a new Mac, a fresh install, an iCloud
+Photos re-download, etc.), so the IDs encoded in older bucket keys no
 longer correspond to anything PhotoKit reports for the same photo today.
 PhotoKit also exposes a stable `cloudIdentifier` via
 `PHPhotoLibrary.cloudIdentifierMappings(forLocalIdentifiers:)`, but the

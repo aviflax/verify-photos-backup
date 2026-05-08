@@ -12,7 +12,11 @@ func csvRow(_ obj: BucketObject, isoFormatter: ISO8601DateFormatter) -> String {
 }
 
 func csvRow(_ asset: LibraryAsset, isoFormatter: ISO8601DateFormatter) -> String {
-    "\(isoFormatter.string(from: asset.creationDate)),\(csvField(asset.originalFilename)),\(asset.size)\n"
+    "\(isoFormatter.string(from: asset.creationDate)),\(csvField(asset.originalFilename)),\(asset.size),\(csvField(asset.localIdentifier))\n"
+}
+
+func notFoundCsvRow(_ asset: LibraryAsset, isoFormatter: ISO8601DateFormatter) -> String {
+    "\(isoFormatter.string(from: asset.creationDate)),\(csvField(asset.originalFilename)),\(asset.size),\(csvField(asset.localIdentifier)),\(csvField(asset.cloudIdentifier ?? ""))\n"
 }
 
 func csvRow(_ matched: MatchedAsset, isoFormatter: ISO8601DateFormatter) -> String {
@@ -36,7 +40,10 @@ func writeMatchResult(_ result: MatchResult, matchedPath: String, notFoundPath: 
         header: "creation_date,original_filename,size,bucket_key,bucket_last_modified"
     )
     defer { try? mh.close() }
-    let nh = try openCSV(at: notFoundPath, header: "creation_date,original_filename,size")
+    let nh = try openCSV(
+        at: notFoundPath,
+        header: "creation_date,original_filename,size,local_id,cloud_id"
+    )
     defer { try? nh.close() }
 
     let isoFormatter = ISO8601DateFormatter()
@@ -46,6 +53,6 @@ func writeMatchResult(_ result: MatchResult, matchedPath: String, notFoundPath: 
         mh.write(Data(csvRow(matched, isoFormatter: isoFormatter).utf8))
     }
     for asset in result.notFound {
-        nh.write(Data(csvRow(asset, isoFormatter: isoFormatter).utf8))
+        nh.write(Data(notFoundCsvRow(asset, isoFormatter: isoFormatter).utf8))
     }
 }

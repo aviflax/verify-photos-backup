@@ -55,8 +55,13 @@ struct Verify: AsyncParsableCommand {
         }
         errPrint("\n")
 
+        let enriched = MatchResult(
+            matched: result.matched,
+            notFound: populateCloudIdentifiers(for: result.notFound)
+        )
+
         try writeMatchResult(
-            result,
+            enriched,
             matchedPath: "\(reportDir)/matched.csv",
             notFoundPath: "\(reportDir)/assets-not-found-in-bucket.csv"
         )

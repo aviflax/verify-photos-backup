@@ -5,6 +5,8 @@ struct LibraryAsset: Sendable {
     let creationDate: Date
     let originalFilename: String
     let size: Int64
+    let localIdentifier: String
+    var cloudIdentifier: String? = nil
 }
 
 private let progressBatch = 1000
@@ -24,7 +26,7 @@ func fetchLibraryAssets(
     let assetCount = assets.count
 
     let debugHandle = try debugCSVPath.map {
-        try openCSV(at: $0, header: "creation_date,original_filename,size")
+        try openCSV(at: $0, header: "creation_date,original_filename,size,local_id")
     }
     defer { try? debugHandle?.close() }
 
@@ -64,7 +66,8 @@ func fetchLibraryAssets(
         let la = LibraryAsset(
             creationDate: date,
             originalFilename: resource.originalFilename,
-            size: size
+            size: size,
+            localIdentifier: asset.localIdentifier
         )
         result.append(la)
         if let h = debugHandle {
@@ -77,6 +80,24 @@ func fetchLibraryAssets(
     }
 
     return result
+}
+
+/// Returns copies of `assets` with `cloudIdentifier` populated where PhotoKit
+/// can resolve one. Assets without a cloud identifier (e.g. not yet uploaded
+/// to iCloud, or iCloud Photos disabled) are returned with `cloudIdentifier`
+/// left nil.
+func populateCloudIdentifiers(for assets: [LibraryAsset]) -> [LibraryAsset] {
+    guard !assets.isEmpty else { return assets }
+    let mappings = PHPhotoLibrary.shared().cloudIdentifierMappings(
+        forLocalIdentifiers: assets.map(\.localIdentifier)
+    )
+    return assets.map { asset in
+        var a = asset
+        if case .success(let cid) = mappings[asset.localIdentifier] {
+            a.cloudIdentifier = cid.stringValue
+        }
+        return a
+    }
 }
 
 private func resourceFileSize(_ resource: PHAssetResource) -> Int64? {
