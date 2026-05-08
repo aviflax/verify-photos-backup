@@ -100,6 +100,7 @@ private func listAllObjects(
         }
         await reporter.recordBucket(page: pageNumber, objectCount: result.count)
     }
+    await reporter.finishBucket()
 
     return result
 }

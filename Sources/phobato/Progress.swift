@@ -38,6 +38,7 @@ import Foundation
 
 actor ProgressReporter {
     private var bucket: BucketProgress?
+    private var bucketDone = false
     private var library: LibraryProgress?
     private var finished = false
 
@@ -49,6 +50,11 @@ actor ProgressReporter {
 
     func recordBucket(page: Int, objectCount: Int) {
         bucket = BucketProgress(page: page, objectCount: objectCount)
+        render()
+    }
+
+    func finishBucket() {
+        bucketDone = true
         render()
     }
 
@@ -68,9 +74,13 @@ actor ProgressReporter {
         guard !finished else { return }
         var parts: [String] = []
         if let b = bucket {
-            parts.append(
-                "[ bucket: page \(b.page) — \(fmt(b.objectCount)) objects so far ]"
-            )
+            if bucketDone {
+                parts.append("[ bucket: ✅ \(fmt(b.objectCount)) objects ]")
+            } else {
+                parts.append(
+                    "[ bucket: page \(b.page) — \(fmt(b.objectCount)) objects so far ]"
+                )
+            }
         }
         if let l = library {
             let percent = l.total > 0 ? l.processed * 100 / l.total : 0
