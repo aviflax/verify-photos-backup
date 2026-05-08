@@ -16,7 +16,7 @@ struct Phobato: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "phobato",
         abstract: "PHOto BAckup TOol for working with backups of Apple Photos libraries in S3-compatible buckets",
-        subcommands: [Verify.self]
+        subcommands: [Verify.self, Patch.self]
     )
 
     func run() throws {
