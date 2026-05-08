@@ -15,13 +15,12 @@ func eprint(_ s: String) {
 struct Phobato: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "phobato",
-        abstract: "phobato — photo backup tool (PHOto BAckup TOol)",
+        abstract: "PHOto BAckup TOol",
         subcommands: [Verify.self]
     )
 
-    mutating func run() throws {
-        eprint(Phobato.helpMessage())
-        eprint("\n")
+    func run() throws {
+        eprint(Phobato.helpMessage() + "\n")
         throw ExitCode(1)
     }
 }

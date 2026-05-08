@@ -25,6 +25,7 @@ It currently provides one subcommand:
   up to a Backblaze B2 bucket.
 
 Running `phobato` with no subcommand prints usage to stderr and exits 1.
+Run `phobato --help` or `phobato verify --help` for full help text.
 
 ## `phobato verify`
 
