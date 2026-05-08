@@ -85,7 +85,7 @@ actor ProgressReporter {
         if let l = library {
             let percent = l.total > 0 ? l.processed * 100 / l.total : 0
             parts.append(
-                "[ library: \(percent)% (\(fmt(l.processed)) / \(fmt(l.total))) ]"
+                "[ library: \(percent)% (\(fmt(l.processed)) / \(fmt(l.total)) assets) ]"
             )
         }
         guard !parts.isEmpty else { return }
