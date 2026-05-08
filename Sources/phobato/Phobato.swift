@@ -15,7 +15,7 @@ func errPrint(_ s: String) {
 struct Phobato: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "phobato",
-        abstract: "PHOto BAckup TOol",
+        abstract: "PHOto BAckup TOol for working with backups of Apple Photos libraries in S3-compatible buckets",
         subcommands: [Verify.self]
     )
 

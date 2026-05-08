@@ -17,7 +17,7 @@ CODE.**
 
 # phobato
 
-`phobato` (PHOto BAckup TOol) is a CLI tool for working with backups of Apple Photos libraries on
+`phobato` (PHOto BAckup TOol) is a CLI tool for working with backups of Apple Photos libraries in
 S3-compatible network blob storage buckets.
 
 It currently provides one subcommand:
