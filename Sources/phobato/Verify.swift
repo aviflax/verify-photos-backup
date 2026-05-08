@@ -1,30 +1,17 @@
+import ArgumentParser
 import Foundation
 
-struct VerifyBackupError: Error, CustomStringConvertible {
-    let message: String
-    init(_ message: String) { self.message = message }
-    var description: String { message }
-}
+struct Verify: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "verify",
+        abstract:
+            "Verify that the local Photos library is fully backed up to a Backblaze B2 bucket."
+    )
 
-func eprint(_ s: String) {
-    FileHandle.standardError.write(Data(s.utf8))
-}
+    @Flag(help: "Also write debug CSVs of the raw bucket and library listings.")
+    var debug: Bool = false
 
-@main
-struct VerifyBackup {
-    static func main() async {
-        do {
-            try await run()
-        } catch {
-            eprint("\(error)\n")
-            exit(1)
-        }
-    }
-
-    static func run() async throws {
-        let args = Array(CommandLine.arguments.dropFirst())
-        let debug = args.contains("--debug")
-
+    func run() async throws {
         let reportDir = try resolveReportDir()
         eprint("Report directory: \(reportDir)/\n")
         let bucketDebugPath = debug ? "\(reportDir)/bucket-objects.csv" : nil
@@ -55,9 +42,12 @@ struct VerifyBackup {
         nf.numberStyle = .decimal
         func fmt(_ n: Int) -> String { nf.string(for: n) ?? "\(n)" }
 
-        eprint("Loaded \(fmt(assets.count)) library assets and \(fmt(objects.count)) bucket objects.\n")
+        eprint(
+            "Loaded \(fmt(assets.count)) library assets and \(fmt(objects.count)) bucket objects.\n"
+        )
 
-        let result = match(assets: assets, objects: objects) { processed, total, matched, notFound in
+        let result = match(assets: assets, objects: objects) {
+            processed, total, matched, notFound in
             let percent = total > 0 ? processed * 100 / total : 0
             eprint(
                 "\r\u{1B}[2KMatching: \(fmt(processed)) of \(fmt(total)) (\(percent)%) — \(fmt(matched)) matched, \(fmt(notFound)) not found"
@@ -91,7 +81,7 @@ private func resolveReportDir() throws -> String {
             return candidate
         }
     }
-    throw VerifyBackupError(
+    throw PhobatoError(
         "no available report directory: reports/report-01..reports/report-99 all exist"
     )
 }

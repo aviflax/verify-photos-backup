@@ -15,7 +15,7 @@ func fetchLibraryAssets(
 ) async throws -> [LibraryAsset] {
     let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
     guard status == .authorized || status == .limited else {
-        throw VerifyBackupError("Photos access not granted (status: \(status.rawValue))")
+        throw PhobatoError("Photos access not granted (status: \(status.rawValue))")
     }
 
     let options = PHFetchOptions()

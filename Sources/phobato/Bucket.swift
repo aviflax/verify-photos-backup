@@ -23,7 +23,7 @@ func b2ConfigFromEnv() throws -> B2Config {
         let bucket = env["B2_BUCKET"],
         let endpoint = env["B2_S3_ENDPOINT"]
     else {
-        throw VerifyBackupError(
+        throw PhobatoError(
             "missing one of B2_KEY_ID, B2_APPLICATION_KEY, B2_BUCKET, B2_S3_ENDPOINT"
         )
     }

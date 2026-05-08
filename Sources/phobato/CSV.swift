@@ -24,7 +24,7 @@ func csvRow(_ matched: MatchedAsset, isoFormatter: ISO8601DateFormatter) -> Stri
 func openCSV(at path: String, header: String) throws -> FileHandle {
     FileManager.default.createFile(atPath: path, contents: nil)
     guard let h = FileHandle(forWritingAtPath: path) else {
-        throw VerifyBackupError("cannot open \(path) for writing")
+        throw PhobatoError("cannot open \(path) for writing")
     }
     h.write(Data("\(header)\n".utf8))
     return h

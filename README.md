@@ -15,12 +15,22 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE CODE OR THE USE OR OTHER DEALINGS IN THE
 CODE.**
 
-# verify-photos-backup
+# phobato
 
-A tool for verifying that a local Photos library is fully backed up to a
-Backblaze B2 bucket. It lists every object in the bucket, enumerates
-every asset in the local Photos library (concurrently with the listing),
-matches the two by `(date, size)`, and writes:
+`phobato` (PHOto BAckup TOol) is a CLI tool for working with photo backups.
+
+It currently provides one subcommand:
+
+- `phobato verify` — verifies that the local Photos library is fully backed
+  up to a Backblaze B2 bucket.
+
+Running `phobato` with no subcommand prints usage to stderr and exits 1.
+
+## `phobato verify`
+
+Lists every object in the bucket, enumerates every asset in the local Photos
+library (concurrently with the listing), matches the two by `(date, size)`,
+and writes:
 
 - `matched.csv` — one row per library asset that has a corresponding bucket
   object, with columns
@@ -67,7 +77,7 @@ Set the following environment variables for B2 access:
 Then run:
 
 ```sh
-swift run verify-backup [--debug]
+swift run phobato verify [--debug]
 ```
 
 Each run creates a fresh report directory under `reports/`
@@ -94,5 +104,5 @@ B2_KEY_ID=00xxxxxxxxxxxxx \
 B2_APPLICATION_KEY=K00xxxxxxxxxxxxxxxxxxxxxxxxxxxx \
 B2_BUCKET=my-photos \
 B2_S3_ENDPOINT=https://s3.us-west-002.backblazeb2.com \
-  swift run verify-backup
+  swift run phobato verify
 ```
