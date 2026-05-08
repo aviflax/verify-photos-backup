@@ -17,12 +17,13 @@ CODE.**
 
 # phobato
 
-`phobato` (PHOto BAckup TOol) is a CLI tool for working with photo backups.
+`phobato` (PHOto BAckup TOol) is a CLI tool for working with backups of Apple Photos libraries on
+S3-compatible network blob storage buckets.
 
 It currently provides one subcommand:
 
 - `phobato verify` — verifies that the local Photos library is fully backed
-  up to a Backblaze B2 bucket.
+  up to a bucket.
 
 Running `phobato` with no subcommand prints usage to stderr and exits 1.
 Run `phobato --help` or `phobato verify --help` for full help text.
@@ -65,7 +66,7 @@ Assumes the bucket key prefixes were generated using the same local timezone
 as the device running the tool. If the backup ran in a different timezone,
 date-edge cases may misclassify by ±1 day.
 
-## Usage
+### Usage
 
 Set the following environment variables for B2 access:
 
