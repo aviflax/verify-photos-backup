@@ -14,6 +14,8 @@ struct Patch: AsyncParsableCommand {
     func run() async throws {
         let reportDir = try findRecentReportDir()
         errPrint("Using report directory: \(reportDir)/\n")
+        let patchDir = try createNextPatchDir(in: reportDir)
+        errPrint("Writing patch outputs to: \(patchDir)/\n")
 
         let notFoundPath = "\(reportDir)/assets-not-found-in-bucket.csv"
         let rows = try parseNotFoundCSV(at: notFoundPath)
@@ -52,7 +54,7 @@ struct Patch: AsyncParsableCommand {
         do {
             try await runUploads(
                 items: uploadable,
-                reportDir: reportDir,
+                patchDir: patchDir,
                 config: config,
                 client: client
             )
@@ -68,7 +70,7 @@ struct Patch: AsyncParsableCommand {
 
 private func runUploads(
     items: [NotFoundRow],
-    reportDir: String,
+    patchDir: String,
     config: B2Config,
     client: AWSClient
 ) async throws {
@@ -84,7 +86,7 @@ private func runUploads(
 
     let totalBytes = items.reduce(Int64(0)) { $0 + $1.size }
     let sink = try PatchSink(
-        reportDir: reportDir,
+        patchDir: patchDir,
         total: items.count,
         totalBytes: totalBytes
     )
@@ -116,12 +118,15 @@ private func runUploads(
     nf.numberStyle = .decimal
     func fmt(_ n: Int) -> String { nf.string(for: n) ?? "\(n)" }
     print(
-        "Patched \(fmt(summary.succeeded)) of \(fmt(summary.total)) assets; \(fmt(summary.failed)) failed."
+        "Patched \(fmt(summary.succeeded)) of \(fmt(summary.total)) assets; \(fmt(summary.skipped)) already in bucket; \(fmt(summary.failed)) failed."
     )
-    print("Wrote: \(reportDir)/patched.csv")
+    print("Wrote: \(patchDir)/patched.csv")
+    if summary.skipped > 0 {
+        print("       \(patchDir)/skipped_already_patched.csv")
+    }
     if summary.failed > 0 {
-        print("       \(reportDir)/patch_failures.csv")
-        print("       \(reportDir)/patch_errors.log")
+        print("       \(patchDir)/patch_failures.csv")
+        print("       \(patchDir)/patch_errors.log")
     }
 }
 
@@ -139,6 +144,20 @@ private func uploadOne(
 ) async {
     let key = bucketKey(for: item)
     do {
+        switch try await checkExisting(s3: s3, bucket: bucket, key: key, expectedSize: item.size) {
+        case .matches:
+            await sink.recordSkipped(item: item, key: key)
+            return
+        case .mismatch(let bucketSize):
+            await sink.recordFailure(
+                item: item, key: key,
+                error: PhobatoError(sizeMismatchMessage(bucketSize: bucketSize, expected: item.size))
+            )
+            return
+        case .absent:
+            break
+        }
+
         let tempURL = try await stageOriginalToTempFile(localId: item.localId)
         defer { try? FileManager.default.removeItem(at: tempURL) }
         let createReq = S3.CreateMultipartUploadRequest(bucket: bucket, key: key)
@@ -202,6 +221,36 @@ private actor BytesTracker {
         sent = cumulative
         return delta
     }
+}
+
+// MARK: - Pre-upload existence check
+
+private enum ExistingObject {
+    case absent
+    case matches
+    case mismatch(bucketSize: Int64)
+}
+
+private func checkExisting(
+    s3: S3, bucket: String, key: String, expectedSize: Int64
+) async throws -> ExistingObject {
+    do {
+        let head = try await s3.headObject(.init(bucket: bucket, key: key))
+        let bucketSize = head.contentLength ?? -1
+        return bucketSize == expectedSize ? .matches : .mismatch(bucketSize: bucketSize)
+    } catch {
+        if let aws = error as? AWSErrorType, aws.context?.responseCode == .notFound {
+            return .absent
+        }
+        throw error
+    }
+}
+
+private func sizeMismatchMessage(bucketSize: Int64, expected: Int64) -> String {
+    func mb(_ b: Int64) -> String {
+        String(format: "%.2f MB", Double(b) / 1_000_000)
+    }
+    return "key collision: bucket object: \(mb(bucketSize)); library asset original: \(mb(expected))"
 }
 
 // MARK: - Object key construction
@@ -275,6 +324,7 @@ actor PatchSink {
     struct Summary {
         let total: Int
         let succeeded: Int
+        let skipped: Int
         let failed: Int
     }
 
@@ -282,28 +332,34 @@ actor PatchSink {
     private let totalBytes: Int64
     private var completed = 0
     private var succeeded = 0
+    private var skipped = 0
     private var failed = 0
     private var bytesUploaded: Int64 = 0
     private let patchedHandle: FileHandle
+    private let skippedHandle: FileHandle
     private let failuresHandle: FileHandle
     private let errorLogHandle: FileHandle
     private let isoFormatter: ISO8601DateFormatter
     private var closed = false
     private var lastRenderedLineLength = 0
 
-    init(reportDir: String, total: Int, totalBytes: Int64) throws {
+    init(patchDir: String, total: Int, totalBytes: Int64) throws {
         self.total = total
         self.totalBytes = totalBytes
         self.patchedHandle = try openCSV(
-            at: "\(reportDir)/patched.csv",
+            at: "\(patchDir)/patched.csv",
+            header: "sequence,creation_date,original_filename,size,local_id,cloud_id,bucket_key"
+        )
+        self.skippedHandle = try openCSV(
+            at: "\(patchDir)/skipped_already_patched.csv",
             header: "sequence,creation_date,original_filename,size,local_id,cloud_id,bucket_key"
         )
         self.failuresHandle = try openCSV(
-            at: "\(reportDir)/patch_failures.csv",
+            at: "\(patchDir)/patch_failures.csv",
             header:
                 "sequence,creation_date,original_filename,size,local_id,cloud_id,bucket_key,error"
         )
-        let logPath = "\(reportDir)/patch_errors.log"
+        let logPath = "\(patchDir)/patch_errors.log"
         FileManager.default.createFile(atPath: logPath, contents: nil)
         guard let log = FileHandle(forWritingAtPath: logPath) else {
             throw PhobatoError("cannot open \(logPath) for writing")
@@ -340,6 +396,23 @@ actor PatchSink {
         render()
     }
 
+    func recordSkipped(item: NotFoundRow, key: String) {
+        completed += 1
+        skipped += 1
+        // Credit skipped bytes toward bytesUploaded so the MB-progress reaches
+        // 100% at end of run — those bytes are already in the bucket.
+        bytesUploaded += item.size
+        let row = "\(skipped)/\(total),"
+            + "\(isoFormatter.string(from: item.creationDate)),"
+            + "\(csvField(item.originalFilename)),"
+            + "\(item.size),"
+            + "\(csvField(item.localId)),"
+            + "\(csvField(item.cloudId)),"
+            + "\(csvField(key))\n"
+        skippedHandle.write(Data(row.utf8))
+        render()
+    }
+
     func recordFailure(item: NotFoundRow, key: String, error: Error) {
         completed += 1
         failed += 1
@@ -361,14 +434,15 @@ actor PatchSink {
 
     func close() -> Summary {
         guard !closed else {
-            return Summary(total: total, succeeded: succeeded, failed: failed)
+            return Summary(total: total, succeeded: succeeded, skipped: skipped, failed: failed)
         }
         closed = true
         FileHandle.standardError.write(Data("\n".utf8))
         try? patchedHandle.close()
+        try? skippedHandle.close()
         try? failuresHandle.close()
         try? errorLogHandle.close()
-        return Summary(total: total, succeeded: succeeded, failed: failed)
+        return Summary(total: total, succeeded: succeeded, skipped: skipped, failed: failed)
     }
 
     private func render() {
@@ -384,10 +458,30 @@ actor PatchSink {
             ? Int((Double(bytesUploaded) / Double(totalBytes)) * 100)
             : 0
         let line =
-            "Patching: \(fmt(completed)) of \(fmt(total)) (\(percent)%) — \(fmt(succeeded)) succeeded, \(fmt(failed)) failed — \(fmt(mbDone)) of \(fmt(mbTotal)) MB (\(bytePercent)%)"
+            "Patching: \(fmt(completed)) of \(fmt(total)) (\(percent)%) — \(fmt(succeeded)) succeeded, \(fmt(skipped)) skipped, \(fmt(failed)) failed — \(fmt(mbDone)) of \(fmt(mbTotal)) MB (\(bytePercent)%)"
         FileHandle.standardError.write(Data("\r\u{1B}[2K\(line)".utf8))
         lastRenderedLineLength = line.count
     }
+}
+
+// MARK: - Patch dir creation
+
+private func createNextPatchDir(in reportDir: String) throws -> String {
+    let fm = FileManager.default
+    let entries = (try? fm.contentsOfDirectory(atPath: reportDir)) ?? []
+    let highest = entries.compactMap { name -> Int? in
+        guard name.hasPrefix("patch-") else { return nil }
+        return Int(name.dropFirst("patch-".count))
+    }.max() ?? 0
+    let next = highest + 1
+    guard next <= 99 else {
+        throw PhobatoError(
+            "patch numbering exhausted: \(reportDir)/patch-99 already exists"
+        )
+    }
+    let path = "\(reportDir)/" + String(format: "patch-%02d", next)
+    try fm.createDirectory(atPath: path, withIntermediateDirectories: false)
+    return path
 }
 
 // MARK: - Report dir discovery
