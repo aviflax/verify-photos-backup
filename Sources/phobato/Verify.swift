@@ -79,14 +79,21 @@ struct Verify: AsyncParsableCommand {
 private func resolveReportDir() throws -> String {
     let fm = FileManager.default
     try fm.createDirectory(atPath: "reports", withIntermediateDirectories: true)
-    for i in 1...99 {
-        let candidate = "reports/" + String(format: "report-%02d", i)
-        if !fm.fileExists(atPath: candidate) {
-            try fm.createDirectory(atPath: candidate, withIntermediateDirectories: false)
-            return candidate
-        }
+    // Use one-higher-than-the-highest-existing rather than first-empty-slot,
+    // so deleting old report dirs (e.g. report-01) doesn't cause the next run
+    // to recycle that name when newer reports are still around.
+    let entries = (try? fm.contentsOfDirectory(atPath: "reports")) ?? []
+    let highest = entries.compactMap { name -> Int? in
+        guard name.hasPrefix("report-") else { return nil }
+        return Int(name.dropFirst("report-".count))
+    }.max() ?? 0
+    let next = highest + 1
+    guard next <= 99 else {
+        throw PhobatoError(
+            "report numbering exhausted: reports/report-99 already exists"
+        )
     }
-    throw PhobatoError(
-        "no available report directory: reports/report-01..reports/report-99 all exist"
-    )
+    let path = "reports/" + String(format: "report-%02d", next)
+    try fm.createDirectory(atPath: path, withIntermediateDirectories: false)
+    return path
 }
