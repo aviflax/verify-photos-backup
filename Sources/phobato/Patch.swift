@@ -158,7 +158,7 @@ private func uploadOne(
             break
         }
 
-        let tempURL = try await stageOriginalToTempFile(localId: item.localId)
+        let tempURL = try await stageOriginalToTempFile(item: item, sink: sink)
         defer { try? FileManager.default.removeItem(at: tempURL) }
         let createReq = S3.CreateMultipartUploadRequest(bucket: bucket, key: key)
         let tracker = BytesTracker()
@@ -284,10 +284,10 @@ private func normalizedExtension(forFilename name: String) -> String {
 
 // MARK: - PhotoKit data fetch
 
-private func stageOriginalToTempFile(localId: String) async throws -> URL {
-    let fetch = PHAsset.fetchAssets(withLocalIdentifiers: [localId], options: nil)
+private func stageOriginalToTempFile(item: NotFoundRow, sink: PatchSink) async throws -> URL {
+    let fetch = PHAsset.fetchAssets(withLocalIdentifiers: [item.localId], options: nil)
     guard let asset = fetch.firstObject else {
-        throw PhobatoError("PhotoKit: no asset found for local_id \(localId)")
+        throw PhobatoError("PhotoKit: no asset found for local_id \(item.localId)")
     }
     let resources = PHAssetResource.assetResources(for: asset)
     var original: PHAssetResource?
@@ -296,25 +296,37 @@ private func stageOriginalToTempFile(localId: String) async throws -> URL {
         break
     }
     guard let resource = original else {
-        throw PhobatoError("PhotoKit: no photo/video resource for asset \(localId)")
+        throw PhobatoError("PhotoKit: no photo/video resource for asset \(item.localId)")
     }
 
     let tempURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("phobato-patch-\(UUID().uuidString)")
     let options = PHAssetResourceRequestOptions()
     options.isNetworkAccessAllowed = true
+    // PhotoKit fires this only when it has to fetch from iCloud — locally
+    // available resources never tick. Sink dedupes so we INFO-log once per
+    // asset and update the live counter on first signal.
+    options.progressHandler = { fraction in
+        Task { await sink.noteDownloadProgress(item: item, fraction: fraction) }
+    }
 
-    try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-        PHAssetResourceManager.default().writeData(
-            for: resource, toFile: tempURL, options: options
-        ) { error in
-            if let error = error {
-                cont.resume(throwing: error)
-            } else {
-                cont.resume(returning: ())
+    do {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            PHAssetResourceManager.default().writeData(
+                for: resource, toFile: tempURL, options: options
+            ) { error in
+                if let error = error {
+                    cont.resume(throwing: error)
+                } else {
+                    cont.resume(returning: ())
+                }
             }
         }
+    } catch {
+        await sink.noteDownloadFinished(item: item)
+        throw error
     }
+    await sink.noteDownloadFinished(item: item)
     return tempURL
 }
 
@@ -328,6 +340,12 @@ actor PatchSink {
         let failed: Int
     }
 
+    private struct DownloadState {
+        let size: Int64
+        var fraction: Double
+        var lastRenderedPct: Int
+    }
+
     private let total: Int
     private let totalBytes: Int64
     private var completed = 0
@@ -335,6 +353,13 @@ actor PatchSink {
     private var skipped = 0
     private var failed = 0
     private var bytesUploaded: Int64 = 0
+    // Currently in-flight iCloud downloads. The progress segment in the line
+    // aggregates over this dict (downloaded / total MB and percent). The
+    // separate `downloadStartedFor` set is wider: it remembers every local
+    // ID that ever fired progressHandler, so we only emit the one-shot INFO
+    // line per asset and so a stale tick after finish doesn't re-add it.
+    private var downloads: [String: DownloadState] = [:]
+    private var downloadStartedFor: Set<String> = []
     private let patchedHandle: FileHandle
     private let skippedHandle: FileHandle
     private let failuresHandle: FileHandle
@@ -380,6 +405,46 @@ actor PatchSink {
         // then re-render the progress line below.
         FileHandle.standardError.write(Data("\r\u{1B}[2K\(message)\n".utf8))
         render()
+    }
+
+    /// Called from PHAssetResourceRequestOptions.progressHandler. The first
+    /// firing for a given local ID is the signal that an iCloud download
+    /// kicked in (locally-available resources never fire this). Subsequent
+    /// firings update the fraction, throttled to whole-percent changes.
+    func noteDownloadProgress(item: NotFoundRow, fraction: Double) {
+        let pct = Int(fraction * 100)
+        if var state = downloads[item.localId] {
+            guard pct != state.lastRenderedPct else {
+                state.fraction = fraction
+                downloads[item.localId] = state
+                return
+            }
+            state.fraction = fraction
+            state.lastRenderedPct = pct
+            downloads[item.localId] = state
+            render()
+            return
+        }
+        // First tick for this asset — but it could also be a stale tick after
+        // writeData already returned (Tasks dispatched from progressHandler are
+        // not ordered with respect to noteDownloadFinished). The startedFor
+        // dedupe guards against re-adding a finished asset.
+        guard !downloadStartedFor.contains(item.localId) else { return }
+        downloadStartedFor.insert(item.localId)
+        downloads[item.localId] = DownloadState(
+            size: item.size, fraction: fraction, lastRenderedPct: pct
+        )
+        // Permanent record in the scrollback so a slow run is explainable.
+        FileHandle.standardError.write(Data(
+            "\r\u{1B}[2KINFO: \(item.originalFilename) (\(item.localId)): downloading from iCloud (offloaded)\n".utf8
+        ))
+        render()
+    }
+
+    func noteDownloadFinished(item: NotFoundRow) {
+        if downloads.removeValue(forKey: item.localId) != nil {
+            render()
+        }
     }
 
     func recordSuccess(item: NotFoundRow, key: String) {
@@ -457,8 +522,21 @@ actor PatchSink {
         let bytePercent = totalBytes > 0
             ? Int((Double(bytesUploaded) / Double(totalBytes)) * 100)
             : 0
-        let line =
+        var line =
             "Patching: \(fmt(completed)) of \(fmt(total)) (\(percent)%) — \(fmt(succeeded)) succeeded, \(fmt(skipped)) skipped, \(fmt(failed)) failed — \(fmt(mbDone)) of \(fmt(mbTotal)) MB (\(bytePercent)%)"
+        if !downloads.isEmpty {
+            // Aggregate over currently in-flight downloads. As assets finish
+            // they drop out of the dict; as new ones start they're added in.
+            let dlTotal = downloads.values.reduce(Int64(0)) { $0 + $1.size }
+            let dlDone = downloads.values.reduce(Int64(0)) {
+                $0 + Int64($1.fraction * Double($1.size))
+            }
+            let dlMbDone = Int(dlDone / 1_000_000)
+            let dlMbTotal = Int(dlTotal / 1_000_000)
+            let dlPct = dlTotal > 0 ? Int(Double(dlDone) / Double(dlTotal) * 100) : 0
+            line +=
+                " — \(downloads.count) downloading from iCloud: \(fmt(dlMbDone)) of \(fmt(dlMbTotal)) MB (\(dlPct)%)"
+        }
         FileHandle.standardError.write(Data("\r\u{1B}[2K\(line)".utf8))
         lastRenderedLineLength = line.count
     }
