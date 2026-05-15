@@ -302,6 +302,11 @@ actor PatchSink {
     private let failuresHandle: FileHandle
     private let errorLogHandle: FileHandle
     private let isoFormatter: ISO8601DateFormatter
+    private let nf: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        return f
+    }()
     private var closed = false
     private var lastRenderedLineLength = 0
 
@@ -449,8 +454,6 @@ actor PatchSink {
 
     private func render() {
         let percent = total > 0 ? completed * 100 / total : 0
-        let nf = NumberFormatter()
-        nf.numberStyle = .decimal
         func fmt(_ n: Int) -> String { nf.string(for: n) ?? "\(n)" }
         // Use decimal MB (1,000,000 bytes) — matches the convention macOS Finder
         // uses for file sizes, so the numbers line up with what users see there.
