@@ -84,7 +84,7 @@ Set the following environment variables for B2 access:
 Then run:
 
 ```sh
-swift run phobato verify [--debug]
+swift run -c release phobato verify [--debug]
 ```
 
 Each run creates a fresh report directory under `reports/`
@@ -111,5 +111,5 @@ B2_KEY_ID=00xxxxxxxxxxxxx \
 B2_APPLICATION_KEY=K00xxxxxxxxxxxxxxxxxxxxxxxxxxxx \
 B2_BUCKET=my-photos \
 B2_S3_ENDPOINT=https://s3.us-west-002.backblazeb2.com \
-  swift run phobato verify
+  swift run -c release phobato verify
 ```
