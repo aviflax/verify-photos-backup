@@ -34,25 +34,28 @@ func openCSV(at path: String, header: String) throws -> FileHandle {
     return h
 }
 
-func writeMatchResult(_ result: MatchResult, matchedPath: String, notFoundPath: String) throws {
-    let mh = try openCSV(
-        at: matchedPath,
-        header: "creation_date,original_filename,size,bucket_key,bucket_last_modified"
-    )
-    defer { try? mh.close() }
-    let nh = try openCSV(
-        at: notFoundPath,
-        header: "creation_date,original_filename,size,local_id,cloud_id"
-    )
-    defer { try? nh.close() }
-
+func writeMatchResult(_ result: MatchResult, matchedPath: String?, notFoundPath: String?) throws {
+    guard matchedPath != nil || notFoundPath != nil else { return }
     let isoFormatter = ISO8601DateFormatter()
     isoFormatter.formatOptions = [.withInternetDateTime]
-
-    for matched in result.matched {
-        mh.write(Data(csvRow(matched, isoFormatter: isoFormatter).utf8))
+    if let path = matchedPath {
+        let h = try openCSV(
+            at: path,
+            header: "creation_date,original_filename,size,bucket_key,bucket_last_modified"
+        )
+        defer { try? h.close() }
+        for matched in result.matched {
+            h.write(Data(csvRow(matched, isoFormatter: isoFormatter).utf8))
+        }
     }
-    for asset in result.notFound {
-        nh.write(Data(notFoundCsvRow(asset, isoFormatter: isoFormatter).utf8))
+    if let path = notFoundPath {
+        let h = try openCSV(
+            at: path,
+            header: "creation_date,original_filename,size,local_id,cloud_id"
+        )
+        defer { try? h.close() }
+        for asset in result.notFound {
+            h.write(Data(notFoundCsvRow(asset, isoFormatter: isoFormatter).utf8))
+        }
     }
 }

@@ -60,18 +60,22 @@ struct Verify: AsyncParsableCommand {
             notFound: populateCloudIdentifiers(for: result.notFound)
         )
 
-        try writeMatchResult(
-            enriched,
-            matchedPath: "\(reportDir)/matched.csv",
-            notFoundPath: "\(reportDir)/assets-not-found-in-bucket.csv"
-        )
+        let matchedPath: String? = debug ? "\(reportDir)/matched.csv" : nil
+        let notFoundPath: String? = enriched.notFound.isEmpty ? nil : "\(reportDir)/assets-not-found-in-bucket.csv"
+        try writeMatchResult(enriched, matchedPath: matchedPath, notFoundPath: notFoundPath)
 
         print(
             "Matched \(fmt(result.matched.count)) of \(fmt(assets.count)) assets; \(fmt(result.notFound.count)) not found."
         )
-        print("Wrote: \(reportDir)/matched.csv, \(reportDir)/assets-not-found-in-bucket.csv")
+        var written: [String] = []
+        if let p = notFoundPath { written.append(p) }
+        if let p = matchedPath { written.append(p) }
         if debug {
-            print("Debug CSVs: \(reportDir)/bucket-objects.csv, \(reportDir)/library-assets.csv")
+            written.append("\(reportDir)/bucket-objects.csv")
+            written.append("\(reportDir)/library-assets.csv")
+        }
+        if !written.isEmpty {
+            print("Wrote: \(written.joined(separator: ", "))")
         }
     }
 }
