@@ -20,13 +20,16 @@ CODE.**
 `phobato` (PHOto BAckup TOol) is a CLI tool for working with backups of Apple Photos libraries in
 S3-compatible network blob storage buckets.
 
-It currently provides one subcommand:
+It currently provides two subcommands:
 
 - `phobato verify` — verifies that the local Photos library is fully backed
   up to a bucket.
+- `phobato patch` — uploads the assets that the most recent `verify` run
+  found missing.
 
 Running `phobato` with no subcommand prints usage to stderr and exits 1.
-Run `phobato --help` or `phobato verify --help` for full help text.
+Run `phobato --help`, `phobato verify --help`, or `phobato patch --help` for
+full help text.
 
 ## `phobato verify`
 
@@ -113,3 +116,68 @@ B2_BUCKET=my-photos \
 B2_S3_ENDPOINT=https://s3.us-west-002.backblazeb2.com \
   swift run -c release phobato verify
 ```
+
+## `phobato patch`
+
+Reads `assets-not-found-in-bucket.csv` from the most recent `verify` run and
+uploads each missing asset's original data from the local Photos library to the
+bucket.
+
+### How it works
+
+1. Finds the highest-numbered `reports/report-NN/` directory. Aborts if that
+   directory is more than one hour old (run `phobato verify` first).
+2. Creates a numbered output sub-directory `reports/report-NN/patch-NN/`.
+3. Reads `assets-not-found-in-bucket.csv`. Rows without a `cloud_id` are
+   skipped (they cannot be given a stable bucket key).
+4. Prints the upload count and prompts `[y/N]` before starting. Any answer
+   other than `y` / `yes` aborts cleanly.
+5. For each asset (up to 4 concurrent uploads):
+   - Does a `HEAD` request for the target key. If an object already exists
+     with the correct byte size it is recorded as *skipped* (safe to re-run).
+     A size mismatch is recorded as a *failure*.
+   - Fetches the original resource via PhotoKit into a temp file. Assets
+     offloaded to iCloud are downloaded automatically; a live progress segment
+     shows MB downloaded / total MB across all in-flight downloads.
+   - Uploads via S3 multipart upload (5 MB parts, 1 part at a time per asset).
+     On a transient failure, retries up to 3 attempts with in-process resume so
+     already-uploaded parts are not re-sent.
+
+### Bucket key scheme
+
+Keys are constructed from the asset's cloud identifier rather than its local
+identifier, so they remain stable across library rebuilds:
+
+```
+YYYY/MM/DD/<cloud_id>.<ext>
+```
+
+`/` and `:` in the cloud ID are replaced with `_`. Extensions are normalized
+(`jpg` → `jpeg`, `tif` → `tiff`).
+
+### Output files
+
+All files are written to `reports/report-NN/patch-NN/`:
+
+- `patched.csv` — one row per successfully uploaded asset, columns
+  `sequence,creation_date,original_filename,size,local_id,cloud_id,bucket_key`.
+- `skipped_already_patched.csv` — assets whose key already existed in the
+  bucket with the correct size (produced only when at least one is skipped).
+- `patch_failures.csv` — assets that could not be uploaded, with an `error`
+  column (produced only when at least one fails).
+- `patch_errors.log` — timestamped error messages for failures (produced only
+  when at least one fails).
+
+### Usage
+
+Uses the same B2 environment variables as `verify`. Run `phobato verify`
+first, then within one hour run:
+
+```sh
+swift run -c release phobato patch
+```
+
+### Idempotency
+
+Re-running `patch` against the same report directory is safe. Already-uploaded
+assets are detected via `HEAD` and counted as skipped rather than re-uploaded.
