@@ -68,7 +68,7 @@ struct Patch: AsyncParsableCommand {
 
 // MARK: - Upload orchestration
 
-private func runUploads(
+func runUploads(
     items: [NotFoundRow],
     patchDir: String,
     config: B2Config,
@@ -544,7 +544,7 @@ actor PatchSink {
 
 // MARK: - Patch dir creation
 
-private func createNextPatchDir(in reportDir: String) throws -> String {
+func createNextPatchDir(in reportDir: String) throws -> String {
     let fm = FileManager.default
     let entries = (try? fm.contentsOfDirectory(atPath: reportDir)) ?? []
     let highest = entries.compactMap { name -> Int? in

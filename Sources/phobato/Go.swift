@@ -1,17 +1,19 @@
 import ArgumentParser
 import Foundation
+import SotoS3
 
-struct Verify: AsyncParsableCommand {
+struct Go: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "verify",
-        abstract:
-            "Verify that the local Photos library is fully backed up to a Backblaze B2 bucket."
+        commandName: "go",
+        abstract: "Verify the backup and optionally upload any missing assets."
     )
 
     @Flag(help: "Also write debug CSVs of the raw bucket and library listings.")
     var debug: Bool = false
 
     func run() async throws {
+        // MARK: Verify phase
+
         let reportDir = try resolveReportDir()
         errPrint("Report directory: \(reportDir)/\n")
         let bucketDebugPath = debug ? "\(reportDir)/bucket-objects.csv" : nil
@@ -46,8 +48,7 @@ struct Verify: AsyncParsableCommand {
             "Loaded \(fmt(assets.count)) library assets and \(fmt(objects.count)) bucket objects.\n"
         )
 
-        let result = match(assets: assets, objects: objects) {
-            processed, total, matched, notFound in
+        let result = match(assets: assets, objects: objects) { processed, total, matched, notFound in
             let percent = total > 0 ? processed * 100 / total : 0
             errPrint(
                 "\r\u{1B}[2KMatching: \(fmt(processed)) of \(fmt(total)) (\(percent)%) — \(fmt(matched)) matched, \(fmt(notFound)) not found"
@@ -73,27 +74,58 @@ struct Verify: AsyncParsableCommand {
         if debug {
             print("Debug CSVs: \(reportDir)/bucket-objects.csv, \(reportDir)/library-assets.csv")
         }
-    }
-}
 
-func resolveReportDir() throws -> String {
-    let fm = FileManager.default
-    try fm.createDirectory(atPath: "reports", withIntermediateDirectories: true)
-    // Use one-higher-than-the-highest-existing rather than first-empty-slot,
-    // so deleting old report dirs (e.g. report-01) doesn't cause the next run
-    // to recycle that name when newer reports are still around.
-    let entries = (try? fm.contentsOfDirectory(atPath: "reports")) ?? []
-    let highest = entries.compactMap { name -> Int? in
-        guard name.hasPrefix("report-") else { return nil }
-        return Int(name.dropFirst("report-".count))
-    }.max() ?? 0
-    let next = highest + 1
-    guard next <= 99 else {
-        throw PhobatoError(
-            "report numbering exhausted: reports/report-99 already exists"
+        // MARK: Patch phase
+
+        guard !enriched.notFound.isEmpty else {
+            print("All assets are in the bucket. Nothing to patch.")
+            return
+        }
+
+        // Convert in memory — no CSV round-trip.
+        let notFoundRows = enriched.notFound.map { asset in
+            NotFoundRow(
+                creationDate: asset.creationDate,
+                originalFilename: asset.originalFilename,
+                size: asset.size,
+                localId: asset.localIdentifier,
+                cloudId: asset.cloudIdentifier ?? ""
+            )
+        }
+        let uploadable = notFoundRows.filter { !$0.cloudId.isEmpty }
+        let missingCloudId = notFoundRows.filter { $0.cloudId.isEmpty }
+
+        if uploadable.isEmpty {
+            print(
+                "Nothing to upload (\(fmt(notFoundRows.count)) missing; \(fmt(missingCloudId.count)) lack a cloud identifier)."
+            )
+            return
+        }
+
+        print("Found \(fmt(uploadable.count)) missing assets to upload.")
+        if !missingCloudId.isEmpty {
+            print("(\(fmt(missingCloudId.count)) assets lack a cloud_id and will be skipped.)")
+        }
+        print("Proceed with upload? [y/N] ", terminator: "")
+        guard let answer = readLine()?.trimmingCharacters(in: .whitespaces).lowercased(),
+              answer == "y" || answer == "yes"
+        else {
+            print("Aborted.")
+            return
+        }
+
+        let patchDir = try createNextPatchDir(in: reportDir)
+        errPrint("Writing patch outputs to: \(patchDir)/\n")
+
+        let client = AWSClient(
+            credentialProvider: .static(accessKeyId: config.keyId, secretAccessKey: config.appKey)
         )
+        do {
+            try await runUploads(items: uploadable, patchDir: patchDir, config: config, client: client)
+            try await client.shutdown()
+        } catch {
+            try? await client.shutdown()
+            throw error
+        }
     }
-    let path = "reports/" + String(format: "report-%02d", next)
-    try fm.createDirectory(atPath: path, withIntermediateDirectories: false)
-    return path
 }
