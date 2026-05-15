@@ -1,5 +1,4 @@
 import Foundation
-import NIOCore
 import Photos
 import SotoS3
 
