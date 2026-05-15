@@ -4,25 +4,25 @@
 
 **This source code is provided for reference only.**
 
-**No use, modification, distribution, or reproduction is permitted without explicit written permission
-from the copyright holder.**
+**No use, modification, distribution, or reproduction is permitted without explicit written
+permission from the copyright holder.**
 
-**THE CODE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE CODE OR THE USE OR OTHER DEALINGS IN THE
-CODE.**
+**THE CODE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE CODE OR THE USE OR OTHER DEALINGS IN THE CODE.**
 
 # phobato
 
-`phobato` (PHOto BAckup TOol) is a CLI tool for verifying and patching backups of Apple Photos libraries in S3-compatible buckets.
+`phobato` (PHOto BAckup TOol) is a CLI tool for verifying and patching backups of Apple Photos
+libraries in S3-compatible buckets.
 
 ## What it does
 
-1. **Verify** — lists every object in the bucket and enumerates every asset in the local Photos library (concurrently), then matches the two by `(creation_date, size)`.
-2. **Patch** — if any assets are missing from the bucket, prompts `[y/N]` and uploads them.
+1. **Verify** — lists every object in the bucket and enumerates every asset in the local Photos
+   library (concurrently), then matches the two by `(creation_date, size)`
+2. **Patch** — if any assets are missing from the bucket, prompts `[y/N]` and uploads them
 
 ## Usage
 
@@ -32,7 +32,7 @@ Set the following environment variables for B2 access:
 - `B2_APPLICATION_KEY` — B2 application key
 - `B2_BUCKET` — bucket name
 - `B2_S3_ENDPOINT` — S3 endpoint URL, e.g. `https://s3.us-west-002.backblazeb2.com`
-- `B2_REGION` *(optional)* — overrides the region inferred from the endpoint
+- `B2_REGION` _(optional)_ — overrides the region inferred from the endpoint
 
 Then run:
 
@@ -52,13 +52,13 @@ If uploads are confirmed, a numbered `patch-NN/` sub-directory is created
 inside the report directory with:
 
 - `patched.csv` — successfully uploaded assets, columns
-  `sequence,creation_date,original_filename,size,local_id,cloud_id,bucket_key`.
+  `sequence,creation_date,original_filename,size,local_id,cloud_id,bucket_key`
 - `skipped_already_patched.csv` — assets already in the bucket with the
-  correct size (only when at least one is skipped).
+  correct size (only when at least one is skipped)
 - `patch_failures.csv` — assets that could not be uploaded, with an `error`
-  column (only when at least one fails).
+  column (only when at least one fails)
 - `patch_errors.log` — timestamped error messages for failures (only when at
-  least one fails).
+  least one fails)
 
 ### Example
 
@@ -78,8 +78,8 @@ local timezone) equals the key's date prefix and the byte sizes are equal.
 Each bucket object matches at most one library asset.
 
 The natural approach would be to match by identifier, but the bucket keys embed
-`PHAsset.localIdentifier` — an opaque string that is *local to the device and
-library* and is regenerated whenever the library is rebuilt or restored.
+`PHAsset.localIdentifier` — an opaque string that is _local to the device and
+library_ and is regenerated whenever the library is rebuilt or restored.
 PhotoKit also exposes a stable `cloudIdentifier`, but the existing backup keys
 don't use it. `(creation_date, size)` is stable across rebuilds, though coarse
 enough to risk collisions when many assets share the same day and byte size.
