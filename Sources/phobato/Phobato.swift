@@ -108,18 +108,18 @@ struct Phobato: AsyncParsableCommand {
             )
         }
         let uploadable = notFoundRows.filter { !$0.cloudId.isEmpty }
-        let missingCloudId = notFoundRows.filter { $0.cloudId.isEmpty }
+        let missingCloudIdCount = notFoundRows.count - uploadable.count
 
         if uploadable.isEmpty {
             print(
-                "Nothing to upload (\(fmt(notFoundRows.count)) missing; \(fmt(missingCloudId.count)) lack a cloud identifier)."
+                "Nothing to upload (\(fmt(notFoundRows.count)) missing; \(fmt(missingCloudIdCount)) lack a cloud identifier)."
             )
             return
         }
 
         print("Found \(fmt(uploadable.count)) missing assets to upload.")
-        if !missingCloudId.isEmpty {
-            print("(\(fmt(missingCloudId.count)) assets lack a cloud_id and will be skipped.)")
+        if missingCloudIdCount > 0 {
+            print("(\(fmt(missingCloudIdCount)) assets lack a cloud_id and will be skipped.)")
         }
         print("Proceed with upload? [y/N] ", terminator: "")
         guard let answer = readLine()?.trimmingCharacters(in: .whitespaces).lowercased(),
