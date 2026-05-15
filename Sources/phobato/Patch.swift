@@ -311,7 +311,6 @@ actor PatchSink {
         return f
     }()
     private var closed = false
-    private var lastRenderedLineLength = 0
 
     init(patchDir: String, total: Int, totalBytes: Int64) throws {
         self.total = total
@@ -485,7 +484,6 @@ actor PatchSink {
                 " — \(downloads.count) downloading from iCloud: \(fmt(dlMbDone)) of \(fmt(dlMbTotal)) MB (\(dlPct)%)"
         }
         FileHandle.standardError.write(Data("\r\u{1B}[2K\(line)".utf8))
-        lastRenderedLineLength = line.count
     }
 }
 
