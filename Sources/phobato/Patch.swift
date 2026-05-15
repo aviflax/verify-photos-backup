@@ -507,7 +507,7 @@ func createNextPatchDir(in reportDir: String) throws -> String {
     return path
 }
 
-// MARK: - CSV parsing
+// MARK: - Data types
 
 struct NotFoundRow: Sendable {
     let creationDate: Date
