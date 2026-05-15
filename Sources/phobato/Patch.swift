@@ -298,9 +298,12 @@ actor PatchSink {
     private var downloads: [String: DownloadState] = [:]
     private var downloadStartedFor: Set<String> = []
     private let patchedHandle: FileHandle
-    private let skippedHandle: FileHandle
-    private let failuresHandle: FileHandle
-    private let errorLogHandle: FileHandle
+    private let skippedPath: String
+    private let failuresPath: String
+    private let logPath: String
+    private var skippedHandle: FileHandle?
+    private var failuresHandle: FileHandle?
+    private var errorLogHandle: FileHandle?
     private let isoFormatter: ISO8601DateFormatter
     private let nf: NumberFormatter = {
         let f = NumberFormatter()
@@ -317,21 +320,9 @@ actor PatchSink {
             at: "\(patchDir)/patched.csv",
             header: "sequence,creation_date,original_filename,size,local_id,cloud_id,bucket_key"
         )
-        self.skippedHandle = try openCSV(
-            at: "\(patchDir)/skipped_already_patched.csv",
-            header: "sequence,creation_date,original_filename,size,local_id,cloud_id,bucket_key"
-        )
-        self.failuresHandle = try openCSV(
-            at: "\(patchDir)/patch_failures.csv",
-            header:
-                "sequence,creation_date,original_filename,size,local_id,cloud_id,bucket_key,error"
-        )
-        let logPath = "\(patchDir)/patch_errors.log"
-        FileManager.default.createFile(atPath: logPath, contents: nil)
-        guard let log = FileHandle(forWritingAtPath: logPath) else {
-            throw PhobatoError("cannot open \(logPath) for writing")
-        }
-        self.errorLogHandle = log
+        self.skippedPath = "\(patchDir)/skipped_already_patched.csv"
+        self.failuresPath = "\(patchDir)/patch_failures.csv"
+        self.logPath = "\(patchDir)/patch_errors.log"
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
         self.isoFormatter = f
@@ -416,7 +407,13 @@ actor PatchSink {
             + "\(csvField(item.localId)),"
             + "\(csvField(item.cloudId)),"
             + "\(csvField(key))\n"
-        skippedHandle.write(Data(row.utf8))
+        if skippedHandle == nil {
+            skippedHandle = try? openCSV(
+                at: skippedPath,
+                header: "sequence,creation_date,original_filename,size,local_id,cloud_id,bucket_key"
+            )
+        }
+        skippedHandle?.write(Data(row.utf8))
         render()
     }
 
@@ -432,10 +429,20 @@ actor PatchSink {
             + "\(csvField(item.cloudId)),"
             + "\(csvField(key)),"
             + "\(csvField(message))\n"
-        failuresHandle.write(Data(row.utf8))
+        if failuresHandle == nil {
+            failuresHandle = try? openCSV(
+                at: failuresPath,
+                header: "sequence,creation_date,original_filename,size,local_id,cloud_id,bucket_key,error"
+            )
+        }
+        failuresHandle?.write(Data(row.utf8))
         let logLine =
             "[\(isoFormatter.string(from: Date()))] \(item.localId) -> \(key): \(message)\n"
-        errorLogHandle.write(Data(logLine.utf8))
+        if errorLogHandle == nil {
+            FileManager.default.createFile(atPath: logPath, contents: nil)
+            errorLogHandle = FileHandle(forWritingAtPath: logPath)
+        }
+        errorLogHandle?.write(Data(logLine.utf8))
         render()
     }
 
@@ -446,9 +453,9 @@ actor PatchSink {
         closed = true
         FileHandle.standardError.write(Data("\n".utf8))
         try? patchedHandle.close()
-        try? skippedHandle.close()
-        try? failuresHandle.close()
-        try? errorLogHandle.close()
+        try? skippedHandle?.close()
+        try? failuresHandle?.close()
+        try? errorLogHandle?.close()
         return Summary(total: total, succeeded: succeeded, skipped: skipped, failed: failed)
     }
 
