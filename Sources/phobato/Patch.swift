@@ -7,7 +7,7 @@ import SotoS3
 func runUploads(
     items: [NotFoundRow],
     patchDir: String,
-    config: B2Config,
+    config: BucketConfig,
     client: AWSClient
 ) async throws {
     // Soto's default per-HTTP-request timeout is 20s, which is too tight for
@@ -515,4 +515,3 @@ struct NotFoundRow: Sendable {
     let localId: String
     let cloudId: String
 }
-

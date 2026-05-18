@@ -26,13 +26,13 @@ libraries in S3-compatible buckets.
 
 ## Usage
 
-Set the following environment variables for B2 access:
+Set the following environment variables for S3-compatible bucket access:
 
-- `B2_KEY_ID` — B2 application key ID
-- `B2_APPLICATION_KEY` — B2 application key
-- `B2_BUCKET` — bucket name
-- `B2_S3_ENDPOINT` — S3 endpoint URL, e.g. `https://s3.us-west-002.backblazeb2.com`
-- `B2_REGION` _(optional)_ — overrides the region inferred from the endpoint
+- `PB_KEY_ID`
+- `PB_APPLICATION_KEY`
+- `PB_BUCKET` — bucket name
+- `PB_S3_ENDPOINT` — S3 endpoint URL, e.g. `https://s3.us-west-002.backblazeb2.com`
+- `PB_REGION` _(optional)_ — overrides the region inferred from the endpoint
 
 Then run:
 
@@ -63,10 +63,10 @@ inside the report directory with:
 ### Example
 
 ```sh
-B2_KEY_ID=00xxxxxxxxxxxxx \
-B2_APPLICATION_KEY=K00xxxxxxxxxxxxxxxxxxxxxxxxxxxx \
-B2_BUCKET=my-photos \
-B2_S3_ENDPOINT=https://s3.us-west-002.backblazeb2.com \
+PB_KEY_ID=00xxxxxxxxxxxxx \
+PB_APPLICATION_KEY=K00xxxxxxxxxxxxxxxxxxxxxxxxxxxx \
+PB_BUCKET=my-photos \
+PB_S3_ENDPOINT=https://s3.us-west-002.backblazeb2.com \
   swift run -c release phobato
 ```
 

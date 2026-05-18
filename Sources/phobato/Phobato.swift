@@ -30,7 +30,7 @@ struct Phobato: AsyncParsableCommand {
         let bucketDebugPath = debug ? "\(reportDir)/bucket-objects.csv" : nil
         let libraryDebugPath = debug ? "\(reportDir)/library-assets.csv" : nil
 
-        let config = try b2ConfigFromEnv()
+        let config = try bucketConfigFromEnv()
 
         let reporter = ProgressReporter()
         async let bucketTask = fetchBucketObjects(

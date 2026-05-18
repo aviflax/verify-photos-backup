@@ -7,7 +7,7 @@ struct BucketObject: Sendable {
     let lastModified: Date
 }
 
-struct B2Config: Sendable {
+struct BucketConfig: Sendable {
     let keyId: String
     let appKey: String
     let bucket: String
@@ -15,20 +15,20 @@ struct B2Config: Sendable {
     let region: String
 }
 
-func b2ConfigFromEnv() throws -> B2Config {
+func bucketConfigFromEnv() throws -> BucketConfig {
     let env = ProcessInfo.processInfo.environment
     guard
-        let keyId = env["B2_KEY_ID"],
-        let appKey = env["B2_APPLICATION_KEY"],
-        let bucket = env["B2_BUCKET"],
-        let endpoint = env["B2_S3_ENDPOINT"]
+        let keyId = env["PB_KEY_ID"],
+        let appKey = env["PB_APPLICATION_KEY"],
+        let bucket = env["PB_BUCKET"],
+        let endpoint = env["PB_S3_ENDPOINT"]
     else {
         throw PhobatoError(
-            "missing one of B2_KEY_ID, B2_APPLICATION_KEY, B2_BUCKET, B2_S3_ENDPOINT"
+            "missing one of PB_KEY_ID, PB_APPLICATION_KEY, PB_BUCKET, PB_S3_ENDPOINT"
         )
     }
-    let region = env["B2_REGION"] ?? endpointRegion(endpoint) ?? "us-west-002"
-    return B2Config(
+    let region = env["PB_REGION"] ?? endpointRegion(endpoint) ?? "us-west-002"
+    return BucketConfig(
         keyId: keyId, appKey: appKey, bucket: bucket, endpoint: endpoint, region: region
     )
 }
@@ -41,7 +41,7 @@ func endpointRegion(_ endpoint: String) -> String? {
 }
 
 func fetchBucketObjects(
-    config: B2Config,
+    config: BucketConfig,
     reporter: ProgressReporter,
     debugCSVPath: String? = nil
 ) async throws -> [BucketObject] {
@@ -63,7 +63,7 @@ func fetchBucketObjects(
 
 private func listAllObjects(
     client: AWSClient,
-    config: B2Config,
+    config: BucketConfig,
     reporter: ProgressReporter,
     debugCSVPath: String?
 ) async throws -> [BucketObject] {
